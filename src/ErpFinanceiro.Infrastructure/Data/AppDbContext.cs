@@ -33,5 +33,13 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
         builder.Entity<IdentityRoleClaim<Guid>>().ToTable("PapelClaims");
         builder.Entity<IdentityUserLogin<Guid>>().ToTable("UsuarioLogins");
         builder.Entity<IdentityUserToken<Guid>>().ToTable("UsuarioTokens");
+
+        // O default `= true` de Usuario.Ativo é só do CLR — sem isso, o EF
+        // gera a coluna com DEFAULT false (default(bool)), fazendo qualquer
+        // insert fora do UserManager (script, correção manual) criar um
+        // usuário inativo silenciosamente. Corrigido por recomendação do
+        // db-schema-reviewer no Passo 4.
+        builder.Entity<Usuario>().Property(u => u.Ativo).HasDefaultValue(true);
+        builder.Entity<Usuario>().Property(u => u.Nome).HasMaxLength(200);
     }
 }

@@ -20,7 +20,10 @@ internal sealed class IdentityRevalidatingAuthenticationStateProvider(
         IOptions<IdentityOptions> options)
     : RevalidatingServerAuthenticationStateProvider(loggerFactory)
 {
-    protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(30);
+    // 10 min (não os 30 min default do template): num sistema financeiro,
+    // uma sessão de usuário recém-desativado não deve continuar válida por
+    // muito tempo — recomendação do security-auditor no Passo 4.
+    protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(10);
 
     protected override async Task<bool> ValidateAuthenticationStateAsync(
         AuthenticationState authenticationState, CancellationToken cancellationToken)

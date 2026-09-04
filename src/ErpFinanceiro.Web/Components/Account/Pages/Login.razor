@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Identity
 
 @inject SignInManager<Usuario> SignInManager
+@inject UserManager<Usuario> UserManager
 @inject ILogger<Login> Logger
 @inject IdentityRedirectManager RedirectManager
 
@@ -65,6 +66,14 @@
         if (result.Succeeded)
         {
             Logger.LogInformation("Usuário {Email} autenticado.", Input.Email);
+
+            var usuario = await UserManager.FindByEmailAsync(Input.Email);
+            if (usuario is not null)
+            {
+                usuario.UltimoLogin = DateTime.UtcNow;
+                await UserManager.UpdateAsync(usuario);
+            }
+
             RedirectManager.RedirectTo(ReturnUrl);
         }
         else if (result.IsLockedOut)

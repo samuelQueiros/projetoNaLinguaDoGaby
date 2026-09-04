@@ -34,12 +34,42 @@ builder.Services.AddIdentityCore<Usuario>(options =>
         // Não há fluxo de confirmação de e-mail (usuários são criados por um
         // Administrador, não por auto-cadastro) — ver seção 15 do escopo.
         options.SignIn.RequireConfirmedAccount = false;
+
+        // Política de senha explícita (mesmo repetindo defaults do Identity)
+        // para ficar auditável no código, não implícita no framework —
+        // recomendação do security-auditor no Passo 4.
         options.Password.RequiredLength = 8;
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireNonAlphanumeric = true;
+
+        // Lockout explícito (15 min é mais dissuasório que o default de 5 min
+        // contra força bruta, sem travar demais um usuário legítimo).
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
+
+// Cookie de autenticação: HTTPS obrigatório, SameSite estrito e expiração
+// alinhada a uma jornada de trabalho (em vez dos 14 dias default) — reduz
+// a janela de uma sessão esquecida em máquina compartilhada.
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    // Always em produção; em dev local (sem HTTPS configurado no container)
+    // isso derrubaria o cookie silenciosamente — SameAsRequest é o próprio
+    // default do Identity.
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
+});
 
 builder.Services.AddScoped<IGerenciadorUsuarios, GerenciadorUsuarios>();
 
