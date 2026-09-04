@@ -32,6 +32,10 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<DadosBancariosFornecedor> DadosBancariosFornecedores => Set<DadosBancariosFornecedor>();
 
+    public DbSet<ContaBancariaEmpresa> ContasBancariasEmpresa => Set<ContaBancariaEmpresa>();
+
+    public DbSet<Cartao> Cartoes => Set<Cartao>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -179,6 +183,48 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             // Passo 8/9).
 
             b.HasIndex(d => d.FornecedorId);
+        });
+
+        builder.Entity<ContaBancariaEmpresa>(b =>
+        {
+            b.ToTable("ContasBancariasEmpresa");
+            b.Property(c => c.Banco).IsRequired().HasMaxLength(150);
+            b.Property(c => c.Agencia).IsRequired().HasMaxLength(20);
+            b.Property(c => c.Apelido).IsRequired().HasMaxLength(100);
+            b.Property(c => c.Ativo).HasDefaultValue(true);
+            b.Property(c => c.CriadoEm).HasDefaultValueSql("now()");
+
+            // Mesma lógica de cifragem de DadosBancariosFornecedor — é
+            // dado bancário sensível mesmo sendo da própria empresa, não
+            // de terceiro (CLAUDE.md seção 3).
+            b.Property(c => c.Conta)
+                .IsRequired()
+                .HasMaxLength(500)
+                .HasConversion(
+                    v => criptografia.Cifrar(v, "ContaBancariaEmpresa.Conta"),
+                    v => criptografia.Decifrar(v, "ContaBancariaEmpresa.Conta"));
+        });
+
+        builder.Entity<Cartao>(b =>
+        {
+            b.ToTable("Cartoes");
+            b.Property(c => c.InstituicaoFinanceira).IsRequired().HasMaxLength(150);
+            b.Property(c => c.Bandeira).IsRequired().HasMaxLength(50);
+            b.Property(c => c.Apelido).IsRequired().HasMaxLength(100);
+            b.Property(c => c.UltimosQuatroDigitos).IsRequired().HasMaxLength(4);
+            b.Property(c => c.Limite).HasColumnType("numeric(14,2)");
+            b.Property(c => c.CriadoEm).HasDefaultValueSql("now()");
+
+            b.HasOne(c => c.Responsavel)
+                .WithMany()
+                .HasForeignKey(c => c.ResponsavelId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(c => c.ResponsavelId);
+
+            b.ToTable(t => t.HasCheckConstraint("CK_Cartoes_DiaFechamento", "\"DiaFechamento\" BETWEEN 1 AND 31"));
+            b.ToTable(t => t.HasCheckConstraint("CK_Cartoes_DiaVencimento", "\"DiaVencimento\" BETWEEN 1 AND 31"));
+            b.ToTable(t => t.HasCheckConstraint("CK_Cartoes_Limite", "\"Limite\" >= 0"));
         });
     }
 

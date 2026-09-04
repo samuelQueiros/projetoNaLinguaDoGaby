@@ -1,0 +1,178 @@
+@page "/contas-bancarias"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using ErpFinanceiro.Application.Cartoes
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Authorization
+@inject IGerenciadorContasBancariasEmpresa Gerenciador
+
+<PageTitle>Contas bancárias</PageTitle>
+
+<h1>Contas bancárias da empresa</h1>
+<p class="text-muted">De onde o dinheiro sai — não confundir com os dados bancários de fornecedores.</p>
+
+<div class="mb-3 d-flex justify-content-end">
+    <button class="btn btn-primary" @onclick="AbrirNovo">+ Nova conta</button>
+</div>
+
+@if (contas is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Apelido</th>
+                <th>Banco</th>
+                <th>Agência</th>
+                <th>Conta</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in contas)
+            {
+                <tr>
+                    <td>@c.Apelido</td>
+                    <td>@c.Banco</td>
+                    <td>@c.Agencia</td>
+                    <td>@Mascarar(c.Conta)</td>
+                    <td>@(c.Tipo == TipoContaBancaria.Corrente ? "Corrente" : "Poupança")</td>
+                    <td>
+                        @if (c.Ativo)
+                        {
+                            <span class="badge bg-success">Ativa</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inativa</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirEdicao(c)">Editar</button>
+                        @if (c.Ativo)
+                        {
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => AlterarAtivoAsync(c.Id, false)">Inativar</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-outline-success" @onclick="() => AlterarAtivoAsync(c.Id, true)">Reativar</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (formularioAberto)
+{
+    <div class="card" style="max-width: 32rem;">
+        <div class="card-body">
+            <h5 class="card-title">@(editandoId is null ? "Nova conta" : "Editar conta")</h5>
+            <EditForm Model="modelo" OnValidSubmit="SalvarAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+                <div class="mb-2">
+                    <label class="form-label">Apelido</label>
+                    <InputText class="form-control" @bind-Value="modelo.Apelido" />
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Banco</label>
+                        <InputText class="form-control" @bind-Value="modelo.Banco" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Agência</label>
+                        <InputText class="form-control" @bind-Value="modelo.Agencia" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Tipo</label>
+                        <InputSelect class="form-select" @bind-Value="modelo.Tipo">
+                            <option value="@TipoContaBancaria.Corrente">Corrente</option>
+                            <option value="@TipoContaBancaria.Poupanca">Poupança</option>
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Conta</label>
+                    <InputText class="form-control" @bind-Value="modelo.Conta" />
+                </div>
+                <button type="submit" class="btn btn-primary">Salvar</button>
+                <button type="button" class="btn btn-link" @onclick="() => formularioAberto = false">Cancelar</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ContaBancariaEmpresa>? contas;
+    private bool formularioAberto;
+    private Guid? editandoId;
+    private FormularioModelo modelo = new();
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync() => contas = (await Gerenciador.ListarAsync()).ToList();
+
+    private void AbrirNovo()
+    {
+        editandoId = null;
+        modelo = new FormularioModelo();
+        formularioAberto = true;
+    }
+
+    private void AbrirEdicao(ContaBancariaEmpresa c)
+    {
+        editandoId = c.Id;
+        modelo = new FormularioModelo { Apelido = c.Apelido, Banco = c.Banco, Agencia = c.Agencia, Conta = c.Conta, Tipo = c.Tipo };
+        formularioAberto = true;
+    }
+
+    private async Task SalvarAsync()
+    {
+        var input = new ContaBancariaEmpresaInput(modelo.Banco, modelo.Agencia, modelo.Conta, modelo.Tipo, modelo.Apelido);
+        if (editandoId is Guid id)
+        {
+            await Gerenciador.EditarAsync(id, input);
+        }
+        else
+        {
+            await Gerenciador.CriarAsync(input);
+        }
+
+        formularioAberto = false;
+        await CarregarAsync();
+    }
+
+    private async Task AlterarAtivoAsync(Guid id, bool ativo)
+    {
+        if (ativo)
+        {
+            await Gerenciador.ReativarAsync(id);
+        }
+        else
+        {
+            await Gerenciador.InativarAsync(id);
+        }
+
+        await CarregarAsync();
+    }
+
+    private static string Mascarar(string valor) =>
+        valor.Length <= 4 ? new string('*', valor.Length) : new string('*', valor.Length - 4) + valor[^4..];
+
+    private sealed class FormularioModelo
+    {
+        [Required] public string Apelido { get; set; } = "";
+        [Required] public string Banco { get; set; } = "";
+        [Required] public string Agencia { get; set; } = "";
+        [Required] public string Conta { get; set; } = "";
+        public TipoContaBancaria Tipo { get; set; }
+    }
+}

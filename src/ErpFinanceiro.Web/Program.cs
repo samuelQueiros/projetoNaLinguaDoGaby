@@ -1,7 +1,9 @@
+using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
+using ErpFinanceiro.Infrastructure.Cartoes;
 using ErpFinanceiro.Infrastructure.Categorias;
 using ErpFinanceiro.Infrastructure.Data;
 using ErpFinanceiro.Infrastructure.Fornecedores;
@@ -81,6 +83,8 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddScoped<IGerenciadorUsuarios, GerenciadorUsuarios>();
 builder.Services.AddScoped(typeof(IGerenciadorCadastroSimples<>), typeof(GerenciadorCadastroSimples<>));
 builder.Services.AddScoped<IGerenciadorFornecedores, GerenciadorFornecedores>();
+builder.Services.AddScoped<IGerenciadorContasBancariasEmpresa, GerenciadorContasBancariasEmpresa>();
+builder.Services.AddScoped<IGerenciadorCartoes, GerenciadorCartoes>();
 
 var app = builder.Build();
 

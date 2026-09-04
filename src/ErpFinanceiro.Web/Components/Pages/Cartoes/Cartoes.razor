@@ -1,0 +1,213 @@
+@page "/cartoes"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using ErpFinanceiro.Application
+@using ErpFinanceiro.Application.Cartoes
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject IGerenciadorCartoes Gerenciador
+@inject UserManager<Usuario> UserManager
+
+<PageTitle>Cartões</PageTitle>
+
+<h1>Cartões</h1>
+
+<div class="mb-3 d-flex justify-content-end">
+    <button class="btn btn-primary" @onclick="AbrirNovo">+ Novo cartão</button>
+</div>
+
+@if (cartoes is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Apelido</th>
+                <th>Instituição</th>
+                <th>Bandeira</th>
+                <th>Final</th>
+                <th>Limite</th>
+                <th>Fechamento</th>
+                <th>Vencimento</th>
+                <th>Responsável</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in cartoes)
+            {
+                <tr>
+                    <td>@c.Apelido</td>
+                    <td>@c.InstituicaoFinanceira</td>
+                    <td>@c.Bandeira</td>
+                    <td>**** @c.UltimosQuatroDigitos</td>
+                    <td>@c.Limite.ToString("C")</td>
+                    <td>Dia @c.DiaFechamento</td>
+                    <td>Dia @c.DiaVencimento</td>
+                    <td>@c.Responsavel?.Nome</td>
+                    <td>@c.Status</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirEdicao(c)">Editar</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (formularioAberto)
+{
+    <div class="card" style="max-width: 36rem;">
+        <div class="card-body">
+            <h5 class="card-title">@(editandoId is null ? "Novo cartão" : "Editar cartão")</h5>
+            <EditForm Model="modelo" OnValidSubmit="SalvarAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+                <div class="row g-2 mb-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Apelido</label>
+                        <InputText class="form-control" @bind-Value="modelo.Apelido" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Instituição financeira</label>
+                        <InputText class="form-control" @bind-Value="modelo.InstituicaoFinanceira" />
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-4">
+                        <label class="form-label">Bandeira</label>
+                        <InputText class="form-control" @bind-Value="modelo.Bandeira" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Últimos 4 dígitos</label>
+                        <InputText class="form-control" @bind-Value="modelo.UltimosQuatroDigitos" maxlength="4" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Limite</label>
+                        <InputNumber class="form-control" @bind-Value="modelo.Limite" />
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-4">
+                        <label class="form-label">Dia de fechamento</label>
+                        <InputNumber class="form-control" @bind-Value="modelo.DiaFechamento" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Dia de vencimento</label>
+                        <InputNumber class="form-control" @bind-Value="modelo.DiaVencimento" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Responsável</label>
+                        <InputSelect class="form-select" @bind-Value="modelo.ResponsavelId">
+                            <option value="">—</option>
+                            @foreach (var u in usuarios)
+                            {
+                                <option value="@u.Id">@u.Nome</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(erro))
+                {
+                    <div class="alert alert-danger">@erro</div>
+                }
+                <button type="submit" class="btn btn-primary">Salvar</button>
+                <button type="button" class="btn btn-link" @onclick="() => formularioAberto = false">Cancelar</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Cartao>? cartoes;
+    private List<Usuario> usuarios = new();
+    private bool formularioAberto;
+    private Guid? editandoId;
+    private FormularioModelo modelo = new();
+    private string? erro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        usuarios = UserManager.Users.Where(u => u.Ativo).OrderBy(u => u.Nome).ToList();
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync() => cartoes = (await Gerenciador.ListarAsync()).ToList();
+
+    private void AbrirNovo()
+    {
+        editandoId = null;
+        modelo = new FormularioModelo();
+        erro = null;
+        formularioAberto = true;
+    }
+
+    private void AbrirEdicao(Cartao c)
+    {
+        editandoId = c.Id;
+        modelo = new FormularioModelo
+        {
+            Apelido = c.Apelido,
+            InstituicaoFinanceira = c.InstituicaoFinanceira,
+            Bandeira = c.Bandeira,
+            UltimosQuatroDigitos = c.UltimosQuatroDigitos,
+            Limite = c.Limite,
+            DiaFechamento = c.DiaFechamento,
+            DiaVencimento = c.DiaVencimento,
+            ResponsavelId = c.ResponsavelId.ToString(),
+        };
+        erro = null;
+        formularioAberto = true;
+    }
+
+    private async Task SalvarAsync()
+    {
+        erro = null;
+        if (string.IsNullOrWhiteSpace(modelo.ResponsavelId))
+        {
+            erro = "Selecione um responsável.";
+            return;
+        }
+
+        var input = new CartaoInput(
+            modelo.InstituicaoFinanceira, modelo.Bandeira, modelo.Apelido, modelo.UltimosQuatroDigitos,
+            modelo.Limite, modelo.DiaFechamento, modelo.DiaVencimento, Guid.Parse(modelo.ResponsavelId));
+
+        var resultado = editandoId is Guid id
+            ? await Gerenciador.EditarAsync(id, input)
+            : await ResultadoDeCriarAsync(input);
+
+        if (!resultado.Sucesso)
+        {
+            erro = string.Join("; ", resultado.Erros);
+            return;
+        }
+
+        formularioAberto = false;
+        await CarregarAsync();
+    }
+
+    private async Task<ResultadoOperacao> ResultadoDeCriarAsync(CartaoInput input)
+    {
+        await Gerenciador.CriarAsync(input);
+        return ResultadoOperacao.Ok();
+    }
+
+    private sealed class FormularioModelo
+    {
+        [Required] public string Apelido { get; set; } = "";
+        [Required] public string InstituicaoFinanceira { get; set; } = "";
+        [Required] public string Bandeira { get; set; } = "";
+        [Required, MaxLength(4), MinLength(4)] public string UltimosQuatroDigitos { get; set; } = "";
+        [Range(0, double.MaxValue)] public decimal Limite { get; set; }
+        [Range(1, 31)] public int DiaFechamento { get; set; } = 1;
+        [Range(1, 31)] public int DiaVencimento { get; set; } = 10;
+        public string ResponsavelId { get; set; } = "";
+    }
+}
