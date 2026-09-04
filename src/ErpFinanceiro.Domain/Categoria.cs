@@ -5,7 +5,7 @@ namespace ErpFinanceiro.Domain;
 /// ContaPagar, NotaFiscal e CartaoDespesa. Nunca excluída fisicamente:
 /// desativada via Ativo = false.
 /// </summary>
-public class Categoria
+public class Categoria : IEntidadeAuditavel
 {
     public Guid Id { get; set; }
 
@@ -14,4 +14,8 @@ public class Categoria
     public string? Descricao { get; set; }
 
     public bool Ativo { get; set; } = true;
+
+    public DateTime CriadoEm { get; set; }
+
+    public DateTime? AtualizadoEm { get; set; }
 }

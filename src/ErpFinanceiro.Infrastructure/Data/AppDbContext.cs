@@ -52,7 +52,10 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.Property(c => c.Nome).IsRequired().HasMaxLength(100);
             b.Property(c => c.Descricao).HasMaxLength(500);
             b.Property(c => c.Ativo).HasDefaultValue(true);
-            b.HasIndex(c => c.Nome).IsUnique();
+            b.Property(c => c.CriadoEm).HasDefaultValueSql("now()");
+            // Único só entre os ativos: permite reusar o nome de uma
+            // categoria desativada (recomendação do db-schema-reviewer).
+            b.HasIndex(c => c.Nome).IsUnique().HasFilter("\"Ativo\" = true");
         });
 
         builder.Entity<CentroCusto>(b =>
@@ -61,7 +64,42 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.Property(c => c.Nome).IsRequired().HasMaxLength(100);
             b.Property(c => c.Descricao).HasMaxLength(500);
             b.Property(c => c.Ativo).HasDefaultValue(true);
-            b.HasIndex(c => c.Nome).IsUnique();
+            b.Property(c => c.CriadoEm).HasDefaultValueSql("now()");
+            b.HasIndex(c => c.Nome).IsUnique().HasFilter("\"Ativo\" = true");
         });
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AplicarTimestamps();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        AplicarTimestamps();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// Preenche CriadoEm/AtualizadoEm de toda entidade que implemente
+    /// IEntidadeAuditavel, sem cada módulo repetir essa lógica (recomendação
+    /// do db-schema-reviewer no Passo 5) — vale para Categoria/CentroCusto
+    /// hoje e para as entidades dos próximos passos.
+    /// </summary>
+    private void AplicarTimestamps()
+    {
+        var agora = DateTime.UtcNow;
+        foreach (var entrada in ChangeTracker.Entries<IEntidadeAuditavel>())
+        {
+            if (entrada.State == EntityState.Added)
+            {
+                entrada.Entity.CriadoEm = agora;
+            }
+            else if (entrada.State == EntityState.Modified)
+            {
+                entrada.Entity.AtualizadoEm = agora;
+            }
+        }
     }
 }
