@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Testes
+[Tt]est[Rr]esult*/
+coverage*.info
+coverage*.json
+coverage*.xml
+
+# IDE
+.vs/
+.vscode/
+*.swp
+
+# Configuração local não versionada (dados sensíveis / connection string real)
+appsettings.Development.json
+.env
+
+# Anexos em disco (dev) — apenas a estrutura de pastas é versionada, não os arquivos
+storage/*
+!storage/.gitkeep
+
+# Artefatos de publish
+[Pp]ublish/
