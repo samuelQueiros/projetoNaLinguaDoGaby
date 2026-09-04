@@ -1,4 +1,5 @@
 using ErpFinanceiro.Application;
+using ErpFinanceiro.Application.Anexos;
 using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
@@ -14,6 +15,7 @@ using ErpFinanceiro.Infrastructure.ContasAPagar;
 using ErpFinanceiro.Infrastructure.Data;
 using ErpFinanceiro.Infrastructure.Fornecedores;
 using ErpFinanceiro.Infrastructure.Seguranca;
+using ErpFinanceiro.Infrastructure.Storage;
 using ErpFinanceiro.Infrastructure.Usuarios;
 using ErpFinanceiro.Web.Components;
 using ErpFinanceiro.Web.Components.Account;
@@ -108,6 +110,19 @@ builder.Services.AddScoped<IGerenciadorContasPagar, GerenciadorContasPagar>();
 builder.Services.AddScoped<IFluxoAprovacao, FluxoAprovacao>();
 builder.Services.AddScoped<IGerenciadorPagamentos, GerenciadorPagamentos>();
 builder.Services.AddSingleton<IRelogio, RelogioSistema>();
+
+var opcoesAnexos = new OpcoesArmazenamentoAnexos
+{
+    RaizFisica = builder.Configuration["Anexos:RaizFisica"]
+        ?? Path.Combine(builder.Environment.ContentRootPath, "..", "..", "storage"),
+};
+if (long.TryParse(builder.Configuration["Anexos:TamanhoMaximoBytes"], out var maxBytes))
+{
+    opcoesAnexos.TamanhoMaximoBytes = maxBytes;
+}
+
+builder.Services.AddSingleton(opcoesAnexos);
+builder.Services.AddScoped<IArmazenamentoAnexos, ArmazenamentoAnexosDisco>();
 
 var app = builder.Build();
 

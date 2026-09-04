@@ -44,6 +44,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<LogAuditoria> LogsAuditoria => Set<LogAuditoria>();
 
+    public DbSet<Anexo> Anexos => Set<Anexo>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -410,6 +412,29 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             // ORDER BY Data.
             b.HasIndex(l => new { l.TipoEntidade, l.EntidadeId, l.Data });
             b.HasIndex(l => l.UsuarioId);
+        });
+
+        builder.Entity<Anexo>(b =>
+        {
+            b.ToTable("Anexos");
+            b.Property(a => a.EntidadeTipo).HasConversion<string>().HasMaxLength(30);
+            b.Property(a => a.TipoDocumento).HasConversion<string>().HasMaxLength(30);
+            b.Property(a => a.NomeArquivo).IsRequired().HasMaxLength(300);
+            b.Property(a => a.CaminhoArmazenamento).IsRequired().HasMaxLength(400);
+            b.Property(a => a.TipoConteudo).IsRequired().HasMaxLength(150);
+            b.Property(a => a.CriadoEm).HasDefaultValueSql("now()");
+
+            b.HasOne(a => a.EnviadoPor)
+                .WithMany()
+                .HasForeignKey(a => a.EnviadoPorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Consulta típica: todos os anexos de uma entidade (Passo 24) —
+            // WHERE EntidadeTipo = X AND EntidadeId = Y.
+            b.HasIndex(a => new { a.EntidadeTipo, a.EntidadeId });
+            b.HasIndex(a => a.EnviadoPorId);
+
+            b.ToTable(t => t.HasCheckConstraint("CK_Anexos_TamanhoBytes", "\"TamanhoBytes\" >= 0"));
         });
     }
 
