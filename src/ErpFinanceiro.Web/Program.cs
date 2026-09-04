@@ -101,6 +101,7 @@ builder.Services.AddScoped<IGerenciadorContasBancariasEmpresa, GerenciadorContas
 builder.Services.AddScoped<IGerenciadorCartoes, GerenciadorCartoes>();
 builder.Services.AddScoped<IRegistradorAuditoria, RegistradorAuditoriaProvisorio>();
 builder.Services.AddScoped<IGerenciadorContasPagar, GerenciadorContasPagar>();
+builder.Services.AddScoped<IFluxoAprovacao, FluxoAprovacao>();
 
 var app = builder.Build();
 

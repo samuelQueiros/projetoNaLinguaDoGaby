@@ -38,6 +38,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<ContaPagar> ContasPagar => Set<ContaPagar>();
 
+    public DbSet<AprovacaoConta> AprovacoesConta => Set<AprovacaoConta>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -305,6 +307,31 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             // debaixo dele (db-schema-reviewer, Passo 14). UseXminAsConcurrencyToken
             // está obsoleto no Npgsql atual — substituído pela forma padrão do EF Core.
             b.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
+        });
+
+        builder.Entity<AprovacaoConta>(b =>
+        {
+            b.ToTable("AprovacoesConta");
+            b.Property(a => a.Motivo).HasMaxLength(1000);
+            b.Property(a => a.Data).HasDefaultValueSql("now()");
+
+            b.HasOne(a => a.ContaPagar)
+                .WithMany()
+                .HasForeignKey(a => a.ContaPagarId)
+                .OnDelete(DeleteBehavior.Restrict); // registro de auditoria pontual — nunca cai em cascata
+
+            b.HasOne(a => a.Usuario)
+                .WithMany()
+                .HasForeignKey(a => a.UsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(a => a.ContaPagarId);
+
+            // Motivo obrigatório quando a ação é rejeição — mesma regra que
+            // o caso de uso valida em Application, reforçada no schema.
+            b.ToTable(t => t.HasCheckConstraint(
+                "CK_AprovacoesConta_MotivoObrigatorioSeRejeitada",
+                "\"Acao\" <> 1 OR (\"Motivo\" IS NOT NULL AND length(trim(\"Motivo\")) > 0)"));
         });
     }
 
