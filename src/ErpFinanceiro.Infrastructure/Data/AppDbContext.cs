@@ -18,6 +18,10 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
     {
     }
 
+    public DbSet<Categoria> Categorias => Set<Categoria>();
+
+    public DbSet<CentroCusto> CentrosDeCusto => Set<CentroCusto>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -41,5 +45,23 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
         // db-schema-reviewer no Passo 4.
         builder.Entity<Usuario>().Property(u => u.Ativo).HasDefaultValue(true);
         builder.Entity<Usuario>().Property(u => u.Nome).HasMaxLength(200);
+
+        builder.Entity<Categoria>(b =>
+        {
+            b.ToTable("Categorias");
+            b.Property(c => c.Nome).IsRequired().HasMaxLength(100);
+            b.Property(c => c.Descricao).HasMaxLength(500);
+            b.Property(c => c.Ativo).HasDefaultValue(true);
+            b.HasIndex(c => c.Nome).IsUnique();
+        });
+
+        builder.Entity<CentroCusto>(b =>
+        {
+            b.ToTable("CentrosDeCusto");
+            b.Property(c => c.Nome).IsRequired().HasMaxLength(100);
+            b.Property(c => c.Descricao).HasMaxLength(500);
+            b.Property(c => c.Ativo).HasDefaultValue(true);
+            b.HasIndex(c => c.Nome).IsUnique();
+        });
     }
 }
