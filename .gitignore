@@ -24,3 +24,9 @@ storage/*
 
 # Artefatos de publish
 [Pp]ublish/
+
+# Documentação e configuração interna do Claude Code — não vai para o
+# repositório remoto a pedido do usuário (mantidos só localmente).
+/CLAUDE.md
+/docs/
+/agents/
