@@ -1,7 +1,6 @@
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.Categorias;
-using ErpFinanceiro.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
+using ErpFinanceiro.Tests.Fixtures;
 
 namespace ErpFinanceiro.Tests.Categorias;
 
@@ -10,21 +9,24 @@ namespace ErpFinanceiro.Tests.Categorias;
 /// MVP), usando <see cref="Categoria"/> como entidade de exemplo — a mesma
 /// implementação é reutilizada por <see cref="CentroCusto"/>. Cada teste
 /// usa um banco EF Core InMemory isolado (Guid único por teste).
+///
+/// Nota (revisão do test-writer): o índice único parcial de Nome (só entre
+/// os ativos, ver AppDbContext) é uma constraint do Postgres que o InMemory
+/// não aplica — por isso não há aqui teste de "nome duplicado entre
+/// ativos" nem de "reativar colidindo com nome ativo existente": um teste
+/// assim passaria mesmo que a regra estivesse quebrada, dando falsa
+/// confiança. Fica registrado como lembrete para os Passos 14/15/19
+/// (ContaPagar/Pagamento), onde as constraints de integridade importam de
+/// verdade: nesse ponto, criar um projeto de teste de integração contra
+/// Postgres real (ex.: via Testcontainers) para cobrir especificamente o
+/// que o InMemory não consegue validar.
 /// </summary>
 public class GerenciadorCadastroSimplesTests
 {
-    private static AppDbContext CriarContexto()
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new AppDbContext(options);
-    }
-
     [Fact]
     public async Task CriarAsync_deve_persistir_categoria_ativa()
     {
-        await using var db = CriarContexto();
+        await using var db = AppDbContextFactory.CriarEmMemoria();
         var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
 
         var categoria = await gerenciador.CriarAsync("Aluguel", "Despesas de aluguel");
@@ -38,7 +40,7 @@ public class GerenciadorCadastroSimplesTests
     [Fact]
     public async Task ListarAsync_com_apenasAtivos_deve_ocultar_inativos()
     {
-        await using var db = CriarContexto();
+        await using var db = AppDbContextFactory.CriarEmMemoria();
         var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
 
         var ativa = await gerenciador.CriarAsync("Energia", null);
@@ -54,9 +56,20 @@ public class GerenciadorCadastroSimplesTests
     }
 
     [Fact]
+    public async Task ListarAsync_em_base_vazia_retorna_lista_vazia()
+    {
+        await using var db = AppDbContextFactory.CriarEmMemoria();
+        var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
+
+        var todas = await gerenciador.ListarAsync();
+
+        Assert.Empty(todas);
+    }
+
+    [Fact]
     public async Task InativarAsync_nao_remove_fisicamente_o_registro()
     {
-        await using var db = CriarContexto();
+        await using var db = AppDbContextFactory.CriarEmMemoria();
         var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
         var categoria = await gerenciador.CriarAsync("Manutenção", null);
 
@@ -69,9 +82,20 @@ public class GerenciadorCadastroSimplesTests
     }
 
     [Fact]
+    public async Task InativarAsync_com_id_vazio_retorna_falha()
+    {
+        await using var db = AppDbContextFactory.CriarEmMemoria();
+        var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
+
+        var resultado = await gerenciador.InativarAsync(Guid.Empty);
+
+        Assert.False(resultado.Sucesso);
+    }
+
+    [Fact]
     public async Task ReativarAsync_volta_o_registro_para_ativo()
     {
-        await using var db = CriarContexto();
+        await using var db = AppDbContextFactory.CriarEmMemoria();
         var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
         var categoria = await gerenciador.CriarAsync("Materiais", null);
         await gerenciador.InativarAsync(categoria.Id);
@@ -86,7 +110,7 @@ public class GerenciadorCadastroSimplesTests
     [Fact]
     public async Task EditarAsync_atualiza_nome_e_descricao()
     {
-        await using var db = CriarContexto();
+        await using var db = AppDbContextFactory.CriarEmMemoria();
         var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
         var categoria = await gerenciador.CriarAsync("Tecnologia", "original");
 
@@ -101,7 +125,7 @@ public class GerenciadorCadastroSimplesTests
     [Fact]
     public async Task EditarAsync_com_id_inexistente_retorna_falha()
     {
-        await using var db = CriarContexto();
+        await using var db = AppDbContextFactory.CriarEmMemoria();
         var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
 
         var resultado = await gerenciador.EditarAsync(Guid.NewGuid(), "Não existe", null);
@@ -113,7 +137,7 @@ public class GerenciadorCadastroSimplesTests
     [Fact]
     public async Task CriarAsync_funciona_igualmente_para_CentroCusto()
     {
-        await using var db = CriarContexto();
+        await using var db = AppDbContextFactory.CriarEmMemoria();
         var gerenciador = new GerenciadorCadastroSimples<CentroCusto>(db);
 
         var centro = await gerenciador.CriarAsync("Financeiro", null);
