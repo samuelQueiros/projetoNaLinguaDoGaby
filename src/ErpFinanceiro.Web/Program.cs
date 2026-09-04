@@ -8,6 +8,7 @@ using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Application.Dashboard;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Application.NotasFiscais;
+using ErpFinanceiro.Application.Relatorios;
 using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure;
@@ -21,6 +22,7 @@ using ErpFinanceiro.Infrastructure.Dashboard;
 using ErpFinanceiro.Infrastructure.Data;
 using ErpFinanceiro.Infrastructure.Fornecedores;
 using ErpFinanceiro.Infrastructure.NotasFiscais;
+using ErpFinanceiro.Infrastructure.Relatorios;
 using ErpFinanceiro.Infrastructure.Seguranca;
 using ErpFinanceiro.Infrastructure.Storage;
 using ErpFinanceiro.Infrastructure.Usuarios;
@@ -134,6 +136,12 @@ builder.Services.AddScoped<IArmazenamentoAnexos, ArmazenamentoAnexosDisco>();
 builder.Services.AddScoped<IGerenciadorAnexos, GerenciadorAnexos>();
 builder.Services.AddScoped<IGerenciadorNotasFiscais, GerenciadorNotasFiscais>();
 builder.Services.AddScoped<IGerenciadorBoletos, GerenciadorBoletos>();
+builder.Services.AddScoped<IExportadorContasPagar, ExportadorContasPagar>();
+
+// Licença Community do QuestPDF (uso gratuito para empresas pequenas/OSS —
+// exigido pela biblioteca desde a v2023, sem isso ela lança exceção em
+// tempo de execução ao gerar o primeiro PDF).
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var app = builder.Build();
 
@@ -166,6 +174,42 @@ app.MapGet("/anexos/{id:guid}", async (Guid id, IGerenciadorAnexos gerenciador) 
         ? Results.NotFound()
         : Results.File(anexo.Conteudo, anexo.TipoConteudo, anexo.NomeArquivo);
 }).RequireAuthorization();
+
+// Exportação do relatório de contas a pagar (seção 10 do escopo) — mesmo
+// motivo dos anexos: download de arquivo binário não sai de um componente
+// Blazor Server, precisa ser um endpoint HTTP de verdade. O filtro chega
+// como querystring porque é um link <a href>, não um POST de formulário.
+async Task<ContaPagar[]> ContasFiltradasAsync(IGerenciadorContasPagar gerenciador, Guid? fornecedorId,
+    StatusFinanceiro? statusFinanceiro, StatusAprovacao? statusAprovacao, DateOnly? vencimentoInicial, DateOnly? vencimentoFinal)
+{
+    var filtro = new FiltroContasPagar(fornecedorId, statusFinanceiro, statusAprovacao, vencimentoInicial, vencimentoFinal);
+    var contas = await gerenciador.ListarAsync(filtro);
+    return contas.ToArray();
+}
+
+app.MapGet("/relatorios/contas-a-pagar.xlsx", async (IGerenciadorContasPagar gerenciador, IExportadorContasPagar exportador,
+        Guid? fornecedorId, StatusFinanceiro? statusFinanceiro, StatusAprovacao? statusAprovacao, DateOnly? vencimentoInicial, DateOnly? vencimentoFinal) =>
+    {
+        var contas = await ContasFiltradasAsync(gerenciador, fornecedorId, statusFinanceiro, statusAprovacao, vencimentoInicial, vencimentoFinal);
+        var arquivo = exportador.ExportarExcel(contas);
+        return Results.File(arquivo, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "contas-a-pagar.xlsx");
+    }).RequireAuthorization();
+
+app.MapGet("/relatorios/contas-a-pagar.csv", async (IGerenciadorContasPagar gerenciador, IExportadorContasPagar exportador,
+        Guid? fornecedorId, StatusFinanceiro? statusFinanceiro, StatusAprovacao? statusAprovacao, DateOnly? vencimentoInicial, DateOnly? vencimentoFinal) =>
+    {
+        var contas = await ContasFiltradasAsync(gerenciador, fornecedorId, statusFinanceiro, statusAprovacao, vencimentoInicial, vencimentoFinal);
+        var arquivo = exportador.ExportarCsv(contas);
+        return Results.File(arquivo, "text/csv", "contas-a-pagar.csv");
+    }).RequireAuthorization();
+
+app.MapGet("/relatorios/contas-a-pagar.pdf", async (IGerenciadorContasPagar gerenciador, IExportadorContasPagar exportador,
+        Guid? fornecedorId, StatusFinanceiro? statusFinanceiro, StatusAprovacao? statusAprovacao, DateOnly? vencimentoInicial, DateOnly? vencimentoFinal) =>
+    {
+        var contas = await ContasFiltradasAsync(gerenciador, fornecedorId, statusFinanceiro, statusAprovacao, vencimentoInicial, vencimentoFinal);
+        var arquivo = exportador.ExportarPdf(contas);
+        return Results.File(arquivo, "application/pdf", "contas-a-pagar.pdf");
+    }).RequireAuthorization();
 
 using (var scope = app.Services.CreateScope())
 {
