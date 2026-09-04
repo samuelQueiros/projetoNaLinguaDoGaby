@@ -1,7 +1,134 @@
-﻿@page "/"
+@page "/"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using ErpFinanceiro.Application.Dashboard
+@using Microsoft.AspNetCore.Authorization
+@inject IPainelFinanceiro Painel
+@inject NavigationManager NavigationManager
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Painel financeiro</PageTitle>
+<h1>Painel financeiro</h1>
 
-<h1>Hello, world!</h1>
+@if (indicadores is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Em aberto</h6>
+                    <p class="fs-4 mb-0">@indicadores.TotalEmAberto.ToString("C")</p>
+                    <small class="text-muted">@indicadores.QuantidadeEmAberto conta(s)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100 border-danger">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Vencidas</h6>
+                    <p class="fs-4 mb-0 text-danger">@indicadores.TotalVencidas.ToString("C")</p>
+                    <small class="text-muted">@indicadores.QuantidadeVencidas conta(s)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">A pagar hoje</h6>
+                    <p class="fs-4 mb-0">@indicadores.TotalAPagarHoje.ToString("C")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Próximos 7 dias</h6>
+                    <p class="fs-4 mb-0">@indicadores.TotalAPagarProximos7Dias.ToString("C")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">A pagar no mês</h6>
+                    <p class="fs-4 mb-0">@indicadores.TotalAPagarNoMes.ToString("C")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100 border-success">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Pago no mês</h6>
+                    <p class="fs-4 mb-0 text-success">@indicadores.TotalPagoNoMes.ToString("C")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100 border-success">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Pago no ano</h6>
+                    <p class="fs-4 mb-0 text-success">@indicadores.TotalPagoNoAno.ToString("C")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Gasto no cartão (ano)</h6>
+                    <p class="fs-4 mb-0">@indicadores.TotalDespesasCartaoNoAno.ToString("C")</p>
+                </div>
+            </div>
+        </div>
+        @if (indicadores.QuantidadePagamentoNaoIdentificado > 0)
+        {
+            <div class="col-sm-6 col-lg-3">
+                <div class="card h-100 border-warning">
+                    <div class="card-body">
+                        <h6 class="card-subtitle text-muted">Pagamento não identificado</h6>
+                        <p class="fs-4 mb-0 text-warning">@indicadores.TotalPagamentoNaoIdentificado.ToString("C")</p>
+                        <small class="text-muted">@indicadores.QuantidadePagamentoNaoIdentificado conta(s)</small>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
 
-Welcome to your new app.
+    <h3>Próximos vencimentos</h3>
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr><th>Fornecedor</th><th>Descrição</th><th>Vencimento</th><th class="text-end">Valor</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var v in indicadores.ProximosVencimentos)
+            {
+                <tr>
+                    <td>@v.Fornecedor</td>
+                    <td>@v.Descricao</td>
+                    <td>@v.Vencimento.ToString("dd/MM/yyyy")</td>
+                    <td class="text-end">@v.ValorFinal.ToString("C")</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirConta(v.ContaPagarId)">Abrir</button>
+                    </td>
+                </tr>
+            }
+            @if (indicadores.ProximosVencimentos.Count == 0)
+            {
+                <tr><td colspan="5" class="text-center text-muted">Nenhuma conta em aberto.</td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IndicadoresPainel? indicadores;
+
+    protected override async Task OnInitializedAsync()
+    {
+        indicadores = await Painel.ObterAsync();
+    }
+
+    private void AbrirConta(Guid id) => NavigationManager.NavigateTo($"/contas-a-pagar/{id}");
+}

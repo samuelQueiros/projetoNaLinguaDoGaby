@@ -5,6 +5,7 @@ using ErpFinanceiro.Application.Boletos;
 using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
 using ErpFinanceiro.Application.ContasAPagar;
+using ErpFinanceiro.Application.Dashboard;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Application.NotasFiscais;
 using ErpFinanceiro.Application.Usuarios;
@@ -16,6 +17,7 @@ using ErpFinanceiro.Infrastructure.Boletos;
 using ErpFinanceiro.Infrastructure.Cartoes;
 using ErpFinanceiro.Infrastructure.Categorias;
 using ErpFinanceiro.Infrastructure.ContasAPagar;
+using ErpFinanceiro.Infrastructure.Dashboard;
 using ErpFinanceiro.Infrastructure.Data;
 using ErpFinanceiro.Infrastructure.Fornecedores;
 using ErpFinanceiro.Infrastructure.NotasFiscais;
@@ -114,6 +116,7 @@ builder.Services.AddScoped<ITimelineConsulta, TimelineConsulta>();
 builder.Services.AddScoped<IGerenciadorContasPagar, GerenciadorContasPagar>();
 builder.Services.AddScoped<IFluxoAprovacao, FluxoAprovacao>();
 builder.Services.AddScoped<IGerenciadorPagamentos, GerenciadorPagamentos>();
+builder.Services.AddScoped<IPainelFinanceiro, PainelFinanceiro>();
 builder.Services.AddSingleton<IRelogio, RelogioSistema>();
 
 var opcoesAnexos = new OpcoesArmazenamentoAnexos
