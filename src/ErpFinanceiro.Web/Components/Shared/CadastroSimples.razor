@@ -1,0 +1,226 @@
+@* Tela genérica de listagem + criar/editar + inativar/reativar para
+   cadastros simples (nome/descrição/ativo) — Passo 7 do plano do MVP.
+   Reutilizada por Categoria e CentroCusto (Passo 6 já reaproveitou o caso
+   de uso; aqui reaproveitamos a tela pelo mesmo motivo: são estruturalmente
+   idênticas). *@
+@typeparam TEntidade where TEntidade : class, ICadastroSimples, new()
+@using System.ComponentModel.DataAnnotations
+@using ErpFinanceiro.Application.Categorias
+@using ErpFinanceiro.Domain
+@inject IGerenciadorCadastroSimples<TEntidade> Gerenciador
+
+<PageTitle>@Titulo</PageTitle>
+
+<h1>@Titulo</h1>
+
+<div class="mb-3 d-flex gap-3 align-items-end flex-wrap">
+    <div>
+        <label class="form-label">Buscar por nome</label>
+        <input class="form-control" @bind="filtro" @bind:event="oninput" placeholder="Digite para filtrar..." />
+    </div>
+    <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="apenasAtivosCk" @bind="apenasAtivos" />
+        <label class="form-check-label" for="apenasAtivosCk">Somente ativos</label>
+    </div>
+    <button class="btn btn-primary ms-auto" @onclick="AbrirNovo">+ Novo</button>
+</div>
+
+@if (itens is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Descrição</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Filtrados)
+            {
+                <tr>
+                    <td>@item.Nome</td>
+                    <td>@item.Descricao</td>
+                    <td>
+                        @if (item.Ativo)
+                        {
+                            <span class="badge bg-success">Ativo</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inativo</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirEdicao(item)">Editar</button>
+                        @if (item.Ativo)
+                        {
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => PedirConfirmacaoInativar(item)">Inativar</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-outline-success" @onclick="() => Reativar(item)">Reativar</button>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (!Filtrados.Any())
+            {
+                <tr>
+                    <td colspan="4" class="text-center text-muted">Nenhum registro encontrado.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (formularioAberto)
+{
+    <div class="card" style="max-width: 32rem;">
+        <div class="card-body">
+            <h5 class="card-title">@(editandoId is null ? "Novo registro" : "Editar registro")</h5>
+            <EditForm Model="modelo" OnValidSubmit="SalvarAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+                <div class="mb-2">
+                    <label class="form-label">Nome</label>
+                    <InputText class="form-control" @bind-Value="modelo.Nome" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Descrição</label>
+                    <InputTextArea class="form-control" @bind-Value="modelo.Descricao" />
+                </div>
+                @if (!string.IsNullOrEmpty(erro))
+                {
+                    <div class="alert alert-danger" role="alert">@erro</div>
+                }
+                <button type="submit" class="btn btn-primary">Salvar</button>
+                <button type="button" class="btn btn-link" @onclick="FecharFormulario">Cancelar</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<ConfirmacaoModal Visivel="confirmacaoVisivel"
+                  Titulo="Inativar registro"
+                  Mensagem="@($"Tem certeza que deseja inativar \"{itemParaInativar?.Nome}\"?")"
+                  OnConfirmar="ConfirmarInativacaoAsync"
+                  OnCancelar="() => confirmacaoVisivel = false" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Titulo { get; set; } = "";
+
+    private List<TEntidade>? itens;
+    private string filtro = "";
+    private bool apenasAtivos;
+    private bool formularioAberto;
+    private Guid? editandoId;
+    private FormularioModelo modelo = new();
+    private string? erro;
+    private bool confirmacaoVisivel;
+    private TEntidade? itemParaInativar;
+
+    private IEnumerable<TEntidade> Filtrados =>
+        (itens ?? Enumerable.Empty<TEntidade>())
+        .Where(i => !apenasAtivos || i.Ativo)
+        .Where(i => string.IsNullOrWhiteSpace(filtro) || i.Nome.Contains(filtro, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        itens = (await Gerenciador.ListarAsync()).ToList();
+    }
+
+    private void AbrirNovo()
+    {
+        editandoId = null;
+        modelo = new FormularioModelo();
+        erro = null;
+        formularioAberto = true;
+    }
+
+    private void AbrirEdicao(TEntidade item)
+    {
+        editandoId = item.Id;
+        modelo = new FormularioModelo { Nome = item.Nome, Descricao = item.Descricao };
+        erro = null;
+        formularioAberto = true;
+    }
+
+    private void FecharFormulario()
+    {
+        formularioAberto = false;
+        erro = null;
+    }
+
+    private async Task SalvarAsync()
+    {
+        erro = null;
+        try
+        {
+            if (editandoId is Guid id)
+            {
+                var resultado = await Gerenciador.EditarAsync(id, modelo.Nome, modelo.Descricao);
+                if (!resultado.Sucesso)
+                {
+                    erro = string.Join("; ", resultado.Erros);
+                    return;
+                }
+            }
+            else
+            {
+                await Gerenciador.CriarAsync(modelo.Nome, modelo.Descricao);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Nome duplicado entre ativos (índice único parcial) — ver AppDbContext.
+            erro = ex.Message;
+            return;
+        }
+
+        formularioAberto = false;
+        await CarregarAsync();
+    }
+
+    private void PedirConfirmacaoInativar(TEntidade item)
+    {
+        itemParaInativar = item;
+        confirmacaoVisivel = true;
+    }
+
+    private async Task ConfirmarInativacaoAsync()
+    {
+        if (itemParaInativar is not null)
+        {
+            await Gerenciador.InativarAsync(itemParaInativar.Id);
+        }
+
+        confirmacaoVisivel = false;
+        itemParaInativar = null;
+        await CarregarAsync();
+    }
+
+    private async Task Reativar(TEntidade item)
+    {
+        await Gerenciador.ReativarAsync(item.Id);
+        await CarregarAsync();
+    }
+
+    private sealed class FormularioModelo
+    {
+        [Required(ErrorMessage = "Informe o nome.")]
+        [MaxLength(100)]
+        public string Nome { get; set; } = "";
+
+        [MaxLength(500)]
+        public string? Descricao { get; set; }
+    }
+}

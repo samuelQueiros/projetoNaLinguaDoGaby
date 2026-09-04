@@ -1,0 +1,44 @@
+@* Diálogo de confirmação genérico — usado aqui para "inativar" (Passo 7) e
+   pensado para ser reaproveitado nas ações críticas dos módulos seguintes
+   (cancelar pagamento, excluir conta, etc. — seção 8 do CLAUDE.md/Passo 17
+   do plano). *@
+@if (Visivel)
+{
+    <div class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@Titulo</h5>
+                </div>
+                <div class="modal-body">
+                    <p>@Mensagem</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Cancelar">Cancelar</button>
+                    <button type="button" class="btn btn-danger" @onclick="Confirmar">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool Visivel { get; set; }
+
+    [Parameter]
+    public string Titulo { get; set; } = "Confirmar ação";
+
+    [Parameter]
+    public string Mensagem { get; set; } = "Tem certeza?";
+
+    [Parameter]
+    public EventCallback OnConfirmar { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancelar { get; set; }
+
+    private Task Confirmar() => OnConfirmar.InvokeAsync();
+
+    private Task Cancelar() => OnCancelar.InvokeAsync();
+}
