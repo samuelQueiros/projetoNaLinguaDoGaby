@@ -9,21 +9,16 @@ namespace ErpFinanceiro.Tests.ContasAPagar;
 
 public class GerenciadorContasPagarTests
 {
-    private sealed class AuditoriaFalsa : IRegistradorAuditoria
-    {
-        public Task RegistrarAsync(Guid usuarioId, string acao, string tipoEntidade, Guid entidadeId, object? valorAnterior, object? valorNovo) =>
-            Task.CompletedTask;
-    }
-
-    private static async Task<(AppDbContext Db, GerenciadorContasPagar Gerenciador, Guid FornecedorId, Guid UsuarioId)> PrepararAsync()
+    private static async Task<(AppDbContext Db, GerenciadorContasPagar Gerenciador, RegistradorAuditoriaFalso Auditoria, Guid FornecedorId, Guid UsuarioId)> PrepararAsync()
     {
         var db = AppDbContextFactory.CriarEmMemoria();
         var fornecedor = new Fornecedor { Id = Guid.NewGuid(), RazaoSocial = "Fornecedor Teste", CnpjCpf = "12345678000199" };
         db.Fornecedores.Add(fornecedor);
         await db.SaveChangesAsync();
 
-        var gerenciador = new GerenciadorContasPagar(db, new AuditoriaFalsa());
-        return (db, gerenciador, fornecedor.Id, Guid.NewGuid());
+        var auditoria = new RegistradorAuditoriaFalso();
+        var gerenciador = new GerenciadorContasPagar(db, auditoria);
+        return (db, gerenciador, auditoria, fornecedor.Id, Guid.NewGuid());
     }
 
     private static ContaPagarInput InputPadrao(Guid fornecedorId, decimal valorOriginal = 100m) =>
@@ -32,7 +27,7 @@ public class GerenciadorContasPagarTests
     [Fact]
     public async Task CriarAsync_calcula_valor_final_e_define_status_iniciais()
     {
-        var (db, gerenciador, fornecedorId, usuarioId) = await PrepararAsync();
+        var (db, gerenciador, auditoria, fornecedorId, usuarioId) = await PrepararAsync();
 
         var resultado = await gerenciador.CriarAsync(InputPadrao(fornecedorId, 150m), usuarioId);
 
@@ -47,7 +42,7 @@ public class GerenciadorContasPagarTests
     [Fact]
     public async Task CriarAsync_com_fornecedor_inexistente_retorna_falha()
     {
-        var (_, gerenciador, _, usuarioId) = await PrepararAsync();
+        var (_, gerenciador, _, _, usuarioId) = await PrepararAsync();
 
         var resultado = await gerenciador.CriarAsync(InputPadrao(Guid.NewGuid()), usuarioId);
 
@@ -58,7 +53,7 @@ public class GerenciadorContasPagarTests
     [Fact]
     public async Task CriarAsync_com_valor_original_negativo_retorna_falha()
     {
-        var (_, gerenciador, fornecedorId, usuarioId) = await PrepararAsync();
+        var (_, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
 
         var resultado = await gerenciador.CriarAsync(InputPadrao(fornecedorId, -10m), usuarioId);
 
@@ -68,7 +63,7 @@ public class GerenciadorContasPagarTests
     [Fact]
     public async Task CriarAsync_com_desconto_maior_que_valor_original_retorna_falha()
     {
-        var (_, gerenciador, fornecedorId, usuarioId) = await PrepararAsync();
+        var (_, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
         var input = InputPadrao(fornecedorId, 100m) with { Desconto = 200m };
 
         var resultado = await gerenciador.CriarAsync(input, usuarioId);
@@ -79,7 +74,7 @@ public class GerenciadorContasPagarTests
     [Fact]
     public async Task EditarAsync_recalcula_valor_final()
     {
-        var (db, gerenciador, fornecedorId, usuarioId) = await PrepararAsync();
+        var (db, gerenciador, auditoria, fornecedorId, usuarioId) = await PrepararAsync();
         var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId, 100m), usuarioId);
 
         var novoInput = InputPadrao(fornecedorId, 100m) with { Desconto = 20m };
@@ -93,7 +88,7 @@ public class GerenciadorContasPagarTests
     [Fact]
     public async Task ExcluirAsync_nao_remove_fisicamente()
     {
-        var (db, gerenciador, fornecedorId, usuarioId) = await PrepararAsync();
+        var (db, gerenciador, auditoria, fornecedorId, usuarioId) = await PrepararAsync();
         var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId), usuarioId);
 
         var resultado = await gerenciador.ExcluirAsync(criada.Conta!.Id, usuarioId);
@@ -107,7 +102,7 @@ public class GerenciadorContasPagarTests
     [Fact]
     public async Task ListarAsync_filtra_por_status_financeiro_e_fornecedor()
     {
-        var (db, gerenciador, fornecedorId, usuarioId) = await PrepararAsync();
+        var (db, gerenciador, auditoria, fornecedorId, usuarioId) = await PrepararAsync();
         await gerenciador.CriarAsync(InputPadrao(fornecedorId, 100m), usuarioId);
         var outroFornecedor = new Fornecedor { Id = Guid.NewGuid(), RazaoSocial = "Outro", CnpjCpf = "99999999000199" };
         db.Fornecedores.Add(outroFornecedor);
@@ -122,9 +117,51 @@ public class GerenciadorContasPagarTests
     }
 
     [Fact]
+    public async Task CriarAsync_grava_log_de_auditoria()
+    {
+        var (_, gerenciador, auditoria, fornecedorId, usuarioId) = await PrepararAsync();
+
+        var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId, 100m), usuarioId);
+
+        var chamada = Assert.Single(auditoria.Chamadas);
+        Assert.Equal(usuarioId, chamada.UsuarioId);
+        Assert.Equal("Criar", chamada.Acao);
+        Assert.Equal(nameof(ContaPagar), chamada.TipoEntidade);
+        Assert.Equal(criada.Conta!.Id, chamada.EntidadeId);
+    }
+
+    [Fact]
+    public async Task EditarAsync_grava_log_de_auditoria()
+    {
+        var (_, gerenciador, auditoria, fornecedorId, usuarioId) = await PrepararAsync();
+        var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId, 100m), usuarioId);
+        auditoria.Chamadas.Clear(); // ignora a chamada do Criar, só interessa o Editar
+
+        await gerenciador.EditarAsync(criada.Conta!.Id, InputPadrao(fornecedorId, 100m) with { Desconto = 10m }, usuarioId);
+
+        var chamada = Assert.Single(auditoria.Chamadas);
+        Assert.Equal("Editar", chamada.Acao);
+        Assert.Equal(criada.Conta.Id, chamada.EntidadeId);
+    }
+
+    [Fact]
+    public async Task ExcluirAsync_grava_log_de_auditoria()
+    {
+        var (_, gerenciador, auditoria, fornecedorId, usuarioId) = await PrepararAsync();
+        var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId), usuarioId);
+        auditoria.Chamadas.Clear();
+
+        await gerenciador.ExcluirAsync(criada.Conta!.Id, usuarioId);
+
+        var chamada = Assert.Single(auditoria.Chamadas);
+        Assert.Equal("Excluir", chamada.Acao);
+        Assert.Equal(criada.Conta.Id, chamada.EntidadeId);
+    }
+
+    [Fact]
     public async Task ListarAsync_oculta_excluidas_por_padrao()
     {
-        var (_, gerenciador, fornecedorId, usuarioId) = await PrepararAsync();
+        var (_, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
         var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId), usuarioId);
         await gerenciador.ExcluirAsync(criada.Conta!.Id, usuarioId);
 

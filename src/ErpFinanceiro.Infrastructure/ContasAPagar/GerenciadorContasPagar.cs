@@ -39,7 +39,15 @@ public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditori
         db.ContasPagar.Add(conta);
         await db.SaveChangesAsync();
 
-        await auditoria.RegistrarAsync(usuarioId, "Criar", nameof(ContaPagar), conta.Id, null, conta);
+        // Nunca passar a entidade crua (conta) para a auditoria: em Blazor
+        // Server o AppDbContext é scoped por circuito, então o EF Core pode
+        // popular conta.Fornecedor via fixup de relacionamento se algum
+        // outro ponto do mesmo circuito já tiver carregado esse Fornecedor
+        // rastreado — vazando CnpjCpf (ou pior, dados bancários se a cadeia
+        // de navegação chegar até lá) em texto plano no JSONB do log
+        // (achado alto do security-auditor, Passo 21). Só campos explícitos.
+        await auditoria.RegistrarAsync(usuarioId, "Criar", nameof(ContaPagar), conta.Id, null,
+            new { conta.FornecedorId, conta.Descricao, conta.ValorFinal, conta.Vencimento, conta.StatusAprovacao, conta.StatusFinanceiro });
 
         return ResultadoContaPagar.Ok(conta);
     }

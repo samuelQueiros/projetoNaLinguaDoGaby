@@ -103,6 +103,7 @@ builder.Services.AddScoped<IGerenciadorContasBancariasEmpresa, GerenciadorContas
 builder.Services.AddScoped<IGerenciadorCartoes, GerenciadorCartoes>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IRegistradorAuditoria, RegistradorAuditoria>();
+builder.Services.AddScoped<ITimelineConsulta, TimelineConsulta>();
 builder.Services.AddScoped<IGerenciadorContasPagar, GerenciadorContasPagar>();
 builder.Services.AddScoped<IFluxoAprovacao, FluxoAprovacao>();
 builder.Services.AddScoped<IGerenciadorPagamentos, GerenciadorPagamentos>();

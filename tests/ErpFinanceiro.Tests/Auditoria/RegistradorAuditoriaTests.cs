@@ -1,3 +1,4 @@
+using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.Auditoria;
 using ErpFinanceiro.Tests.Fixtures;
 using Microsoft.AspNetCore.Http;
@@ -44,5 +45,20 @@ public class RegistradorAuditoriaTests
         var log = await db.LogsAuditoria.SingleAsync();
         Assert.Null(log.ValorAnteriorJson);
         Assert.Null(log.ValorNovoJson);
+    }
+
+    [Fact]
+    public async Task RegistrarAsync_com_entidade_de_dominio_crua_lanca_excecao()
+    {
+        // Blindagem estrutural (não só convenção/comentário) — recomendação
+        // do security-auditor no Passo 21: nunca auditar uma entidade EF
+        // crua, pelo risco de relationship fixup vazar dados sensíveis via
+        // navegação (ex.: ContaPagar.Fornecedor.DadosBancarios).
+        await using var db = AppDbContextFactory.CriarEmMemoria();
+        var registrador = new RegistradorAuditoria(db, new HttpContextAccessorFalso());
+        var fornecedor = new Fornecedor { Id = Guid.NewGuid(), RazaoSocial = "X", CnpjCpf = "12345678000199" };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            registrador.RegistrarAsync(Guid.NewGuid(), "Criar", "Fornecedor", fornecedor.Id, null, fornecedor));
     }
 }
