@@ -259,6 +259,11 @@ else if (carregado)
         </div>
     }
 
+    @if (conta is not null)
+    {
+        <PainelAnexos EntidadeTipo="EntidadeAnexo.ContaPagar" EntidadeId="conta.Id" />
+    }
+
     <div class="card mt-3" style="max-width: 42rem;">
         <div class="card-body">
             <h3>Histórico</h3>

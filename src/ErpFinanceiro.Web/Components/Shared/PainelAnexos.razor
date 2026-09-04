@@ -1,0 +1,148 @@
+@* Painel reutilizável de upload/listagem/download de anexos (Passo 24).
+   Plugado nas telas de ContaPagar, Fornecedor, NotaFiscal, Boleto e
+   CartaoDespesa — todas usam o mesmo componente. *@
+@using ErpFinanceiro.Application.Anexos
+@using ErpFinanceiro.Domain
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@inject IGerenciadorAnexos GerenciadorAnexos
+@inject UserManager<Usuario> UserManager
+
+<div class="card mt-3" style="max-width: 42rem;">
+    <div class="card-body">
+        <h3>Documentos anexados</h3>
+
+        @if (anexos.Count == 0)
+        {
+            <p class="text-muted">Nenhum documento anexado.</p>
+        }
+        else
+        {
+            <ul class="list-unstyled">
+                @foreach (var anexo in anexos)
+                {
+                    <li class="mb-1 d-flex justify-content-between align-items-center">
+                        <span>
+                            <span class="badge bg-secondary">@anexo.TipoDocumento</span>
+                            <a href="/anexos/@anexo.Id" target="_blank">@anexo.NomeArquivo</a>
+                            <small class="text-muted">(@FormatarTamanho(anexo.TamanhoBytes))</small>
+                        </span>
+                        <button class="btn btn-link btn-sm text-danger" @onclick="() => PedirExclusao(anexo.Id)">Excluir</button>
+                    </li>
+                }
+            </ul>
+        }
+
+        <div class="mt-2">
+            <label class="form-label">Tipo de documento</label>
+            <select class="form-select form-select-sm" @bind="tipoSelecionado" style="max-width: 16rem;">
+                @foreach (var tipo in Enum.GetValues<TipoDocumentoAnexo>())
+                {
+                    <option value="@tipo">@tipo</option>
+                }
+            </select>
+            <InputFile class="form-control form-control-sm mt-2" OnChange="EnviarAsync" />
+            @if (!string.IsNullOrEmpty(erro))
+            {
+                <div class="alert alert-danger mt-2">@erro</div>
+            }
+            @if (enviando)
+            {
+                <small class="text-muted">Enviando...</small>
+            }
+        </div>
+    </div>
+</div>
+
+<ConfirmacaoModal Visivel="confirmacaoVisivel"
+                  Titulo="Excluir documento"
+                  Mensagem="Tem certeza que deseja excluir este anexo? A ação não pode ser desfeita."
+                  OnConfirmar="ConfirmarExclusaoAsync"
+                  OnCancelar="() => confirmacaoVisivel = false" />
+
+@code {
+    [Parameter, EditorRequired]
+    public EntidadeAnexo EntidadeTipo { get; set; }
+
+    [Parameter, EditorRequired]
+    public Guid EntidadeId { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private const long TamanhoMaximoUploadBytes = 25 * 1024 * 1024;
+
+    private List<Anexo> anexos = new();
+    private TipoDocumentoAnexo tipoSelecionado = TipoDocumentoAnexo.Outros;
+    private bool enviando;
+    private string? erro;
+    private Guid usuarioId;
+
+    private bool confirmacaoVisivel;
+    private Guid anexoParaExcluir;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await (AuthState ?? Task.FromResult(new AuthenticationState(new ClaimsPrincipal())));
+        var usuario = await UserManager.GetUserAsync(authState.User);
+        usuarioId = usuario?.Id ?? Guid.Empty;
+        await RecarregarAsync();
+    }
+
+    private async Task RecarregarAsync()
+    {
+        anexos = (await GerenciadorAnexos.ListarAsync(EntidadeTipo, EntidadeId)).ToList();
+    }
+
+    private async Task EnviarAsync(InputFileChangeEventArgs e)
+    {
+        erro = null;
+        enviando = true;
+        try
+        {
+            var arquivo = e.File;
+            await using var stream = arquivo.OpenReadStream(TamanhoMaximoUploadBytes);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            buffer.Position = 0;
+
+            await GerenciadorAnexos.AnexarAsync(
+                new NovoAnexo(EntidadeTipo, EntidadeId, tipoSelecionado, buffer, arquivo.Name,
+                    string.IsNullOrWhiteSpace(arquivo.ContentType) ? "application/octet-stream" : arquivo.ContentType),
+                usuarioId);
+
+            await RecarregarAsync();
+        }
+        catch (Exception ex)
+        {
+            erro = ex.Message;
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+
+    private void PedirExclusao(Guid id)
+    {
+        anexoParaExcluir = id;
+        confirmacaoVisivel = true;
+    }
+
+    private async Task ConfirmarExclusaoAsync()
+    {
+        confirmacaoVisivel = false;
+        var resultado = await GerenciadorAnexos.ExcluirAsync(anexoParaExcluir, usuarioId);
+        if (!resultado.Sucesso)
+        {
+            erro = string.Join("; ", resultado.Erros);
+        }
+
+        await RecarregarAsync();
+    }
+
+    private static string FormatarTamanho(long bytes) =>
+        bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{bytes / 1024d:0.#} KB"
+        : $"{bytes / (1024d * 1024d):0.#} MB";
+}

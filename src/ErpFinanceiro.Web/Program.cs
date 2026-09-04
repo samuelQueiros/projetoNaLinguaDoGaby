@@ -8,6 +8,7 @@ using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure;
+using ErpFinanceiro.Infrastructure.Anexos;
 using ErpFinanceiro.Infrastructure.Auditoria;
 using ErpFinanceiro.Infrastructure.Cartoes;
 using ErpFinanceiro.Infrastructure.Categorias;
@@ -123,6 +124,7 @@ if (long.TryParse(builder.Configuration["Anexos:TamanhoMaximoBytes"], out var ma
 
 builder.Services.AddSingleton(opcoesAnexos);
 builder.Services.AddScoped<IArmazenamentoAnexos, ArmazenamentoAnexosDisco>();
+builder.Services.AddScoped<IGerenciadorAnexos, GerenciadorAnexos>();
 
 var app = builder.Build();
 
@@ -144,6 +146,17 @@ app.MapRazorComponents<App>()
 
 // Endpoints exigidos pelos componentes de Identity em Components/Account.
 app.MapAdditionalIdentityEndpoints();
+
+// Download de anexo — precisa ser um endpoint HTTP (não dá para servir um
+// arquivo direto de um componente Blazor Server). Exige autenticação;
+// o storage já bloqueia path traversal ao resolver o caminho.
+app.MapGet("/anexos/{id:guid}", async (Guid id, IGerenciadorAnexos gerenciador) =>
+{
+    var anexo = await gerenciador.BaixarAsync(id);
+    return anexo is null
+        ? Results.NotFound()
+        : Results.File(anexo.Conteudo, anexo.TipoConteudo, anexo.NomeArquivo);
+}).RequireAuthorization();
 
 using (var scope = app.Services.CreateScope())
 {
