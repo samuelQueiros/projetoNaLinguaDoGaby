@@ -26,7 +26,7 @@ else
             </div>
         </div>
         <div class="col-sm-6 col-lg-3">
-            <div class="card h-100 border-danger">
+            <div class="card h-100 cartao-indicador cartao-indicador-perigo">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Vencidas</h6>
                     <p class="fs-4 mb-0 text-danger">@indicadores.TotalVencidas.ToString("C")</p>
@@ -59,7 +59,7 @@ else
             </div>
         </div>
         <div class="col-sm-6 col-lg-3">
-            <div class="card h-100 border-success">
+            <div class="card h-100 cartao-indicador cartao-indicador-sucesso">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Pago no mês</h6>
                     <p class="fs-4 mb-0 text-success">@indicadores.TotalPagoNoMes.ToString("C")</p>
@@ -67,7 +67,7 @@ else
             </div>
         </div>
         <div class="col-sm-6 col-lg-3">
-            <div class="card h-100 border-success">
+            <div class="card h-100 cartao-indicador cartao-indicador-sucesso">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Pago no ano</h6>
                     <p class="fs-4 mb-0 text-success">@indicadores.TotalPagoNoAno.ToString("C")</p>
@@ -85,7 +85,7 @@ else
         @if (indicadores.QuantidadePagamentoNaoIdentificado > 0)
         {
             <div class="col-sm-6 col-lg-3">
-                <div class="card h-100 border-warning">
+                <div class="card h-100 cartao-indicador cartao-indicador-alerta">
                     <div class="card-body">
                         <h6 class="card-subtitle text-muted">Pagamento não identificado</h6>
                         <p class="fs-4 mb-0 text-warning">@indicadores.TotalPagamentoNaoIdentificado.ToString("C")</p>

@@ -1,19 +1,69 @@
+/*
+ * Design tokens do "Financeiro ONRTDPJ" — reskin moderno/minimalista por
+ * cima do Bootstrap 5 vendorizado (wwwroot/bootstrap/), sem alterar esse
+ * arquivo. Paleta inspirada no site institucional de referência: fundo
+ * claro, texto em cinza-chumbo (não preto puro), azul primário, acento
+ * verde para o detalhe decorativo do topo de página.
+ */
+:root {
+    --cor-primaria: #2952cc;
+    --cor-primaria-escura: #1e3fa3;
+    --cor-primaria-suave: #eaf0ff;
+    --cor-acento: #22c55e;
+    --cor-texto: #1f2937;
+    --cor-texto-suave: #6b7280;
+    --cor-fundo: #f7f8fa;
+    --cor-superficie: #ffffff;
+    --cor-borda: #e5e7eb;
+    --raio-borda: 0.6rem;
+    --raio-borda-sm: 0.4rem;
+    --sombra-cartao: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--cor-texto);
+    background-color: var(--cor-fundo);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--cor-texto);
+    font-weight: 600;
 }
 
 a, .btn-link {
-    color: #006bb7;
+    color: var(--cor-primaria);
+}
+
+.btn {
+    border-radius: var(--raio-borda-sm);
+    font-weight: 500;
 }
 
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: var(--cor-primaria);
+    border-color: var(--cor-primaria);
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+    .btn-primary:hover, .btn-primary:focus {
+        background-color: var(--cor-primaria-escura);
+        border-color: var(--cor-primaria-escura);
+    }
+
+.btn-outline-primary {
+    color: var(--cor-primaria);
+    border-color: var(--cor-primaria);
+}
+
+    .btn-outline-primary:hover {
+        background-color: var(--cor-primaria);
+        border-color: var(--cor-primaria);
+    }
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus, .form-select:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem var(--cor-primaria-suave);
+  border-color: var(--cor-primaria);
 }
 
 .content {
@@ -22,6 +72,68 @@ a, .btn-link {
 
 h1:focus {
     outline: none;
+}
+
+/* Cards — cantos mais arredondados e sombra sutil no lugar de borda pesada,
+   consistente com o print de referência (cards de serviço). */
+.card {
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-borda);
+    box-shadow: var(--sombra-cartao);
+}
+
+.card-subtitle {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* Cards de indicador do dashboard — faixa lateral fina em vez de borda
+   colorida completa (padrão mais discreto/moderno). */
+.cartao-indicador {
+    border-left-width: 4px;
+    border-left-style: solid;
+    border-left-color: var(--cor-borda);
+}
+
+    .cartao-indicador.cartao-indicador-perigo {
+        border-left-color: #dc3545;
+    }
+
+    .cartao-indicador.cartao-indicador-sucesso {
+        border-left-color: var(--cor-acento);
+    }
+
+    .cartao-indicador.cartao-indicador-alerta {
+        border-left-color: #f59e0b;
+    }
+
+.table {
+    color: var(--cor-texto);
+}
+
+    .table thead th {
+        color: var(--cor-texto-suave);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        font-weight: 600;
+        border-bottom-width: 1px;
+    }
+
+.badge {
+    font-weight: 500;
+    border-radius: var(--raio-borda-sm);
+}
+
+.modal-content {
+    border-radius: var(--raio-borda);
+    border: none;
+}
+
+.form-control, .form-select {
+    border-radius: var(--raio-borda-sm);
+    border-color: var(--cor-borda);
 }
 
 .valid.modified:not([type=checkbox]) {
