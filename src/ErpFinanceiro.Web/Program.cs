@@ -18,6 +18,16 @@ using ErpFinanceiro.Web.Components.Account;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+
+// Sistema brasileiro: toda formatação de data/moeda (ToString("C"), etc.)
+// deve usar pt-BR (R$, vírgula decimal), não a cultura invariante do
+// container (que mostra "¤" no lugar de "R$"). Setado antes do
+// CreateBuilder para valer em toda a aplicação, inclusive em threads de
+// background (seed, etc.).
+var culturaPtBr = new CultureInfo("pt-BR");
+CultureInfo.DefaultThreadCurrentCulture = culturaPtBr;
+CultureInfo.DefaultThreadCurrentUICulture = culturaPtBr;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -1,0 +1,122 @@
+@page "/contas-a-pagar"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using ErpFinanceiro.Application.Categorias
+@using ErpFinanceiro.Application.ContasAPagar
+@using ErpFinanceiro.Application.Fornecedores
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Authorization
+@inject IGerenciadorContasPagar Gerenciador
+@inject IGerenciadorFornecedores GerenciadorFornecedores
+@inject NavigationManager NavigationManager
+
+<PageTitle>Contas a pagar</PageTitle>
+
+<h1>Contas a pagar</h1>
+
+<div class="row g-2 mb-3 align-items-end">
+    <div class="col-md-3">
+        <label class="form-label">Fornecedor</label>
+        <select class="form-select" @bind="filtroFornecedorId">
+            <option value="">Todos</option>
+            @foreach (var f in fornecedores)
+            {
+                <option value="@f.Id">@f.RazaoSocial</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Status financeiro</label>
+        <select class="form-select" @bind="filtroStatusFinanceiro">
+            <option value="">Todos</option>
+            @foreach (var s in Enum.GetValues<StatusFinanceiro>())
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Status aprovação</label>
+        <select class="form-select" @bind="filtroStatusAprovacao">
+            <option value="">Todos</option>
+            @foreach (var s in Enum.GetValues<StatusAprovacao>())
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-outline-secondary" @onclick="AplicarFiltroAsync">Filtrar</button>
+    </div>
+    <div class="col-md-3 text-end">
+        <button class="btn btn-primary" @onclick="NovaConta">+ Nova conta</button>
+    </div>
+</div>
+
+@if (contas is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <p><strong>@contas.Count conta(s) encontrada(s)</strong> — Total: @contas.Sum(c => c.ValorFinal).ToString("C")</p>
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Fornecedor</th>
+                <th>Descrição</th>
+                <th>Vencimento</th>
+                <th>Valor final</th>
+                <th>Aprovação</th>
+                <th>Financeiro</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in contas)
+            {
+                <tr style="cursor:pointer" @onclick="() => AbrirConta(c.Id)">
+                    <td>@c.Fornecedor?.RazaoSocial</td>
+                    <td>@c.Descricao</td>
+                    <td>@c.Vencimento.ToString("dd/MM/yyyy")</td>
+                    <td>@c.ValorFinal.ToString("C")</td>
+                    <td><span class="badge bg-info text-dark">@c.StatusAprovacao</span></td>
+                    <td><span class="badge bg-secondary">@c.StatusFinanceiro</span></td>
+                    <td></td>
+                </tr>
+            }
+            @if (contas.Count == 0)
+            {
+                <tr><td colspan="7" class="text-center text-muted">Nenhuma conta encontrada.</td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ContaPagar>? contas;
+    private List<Fornecedor> fornecedores = new();
+    private string filtroFornecedorId = "";
+    private string filtroStatusFinanceiro = "";
+    private string filtroStatusAprovacao = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        fornecedores = (await GerenciadorFornecedores.ListarAsync()).ToList();
+        await AplicarFiltroAsync();
+    }
+
+    private void NovaConta() => NavigationManager.NavigateTo("/contas-a-pagar/novo");
+
+    private void AbrirConta(Guid id) => NavigationManager.NavigateTo($"/contas-a-pagar/{id}");
+
+    private async Task AplicarFiltroAsync()
+    {
+        var filtro = new FiltroContasPagar(
+            FornecedorId: string.IsNullOrWhiteSpace(filtroFornecedorId) ? null : Guid.Parse(filtroFornecedorId),
+            StatusFinanceiro: string.IsNullOrWhiteSpace(filtroStatusFinanceiro) ? null : Enum.Parse<StatusFinanceiro>(filtroStatusFinanceiro),
+            StatusAprovacao: string.IsNullOrWhiteSpace(filtroStatusAprovacao) ? null : Enum.Parse<StatusAprovacao>(filtroStatusAprovacao));
+
+        contas = (await Gerenciador.ListarAsync(filtro)).ToList();
+    }
+}
