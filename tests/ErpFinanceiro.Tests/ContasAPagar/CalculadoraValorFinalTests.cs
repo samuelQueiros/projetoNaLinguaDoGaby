@@ -66,6 +66,18 @@ public class CalculadoraValorFinalTests
     }
 
     [Fact]
+    public void Calcular_com_soma_que_excede_decimal_MaxValue_lanca_OverflowException()
+    {
+        // Documenta a decisão consciente de deixar estourar em vez de
+        // capturar/tratar como erro de validação — nenhum valor real de
+        // conta a pagar chega perto de decimal.MaxValue (~7,9x10^28), então
+        // capturar aqui seria over-engineering (recomendação do test-writer,
+        // Passo 15).
+        Assert.Throws<OverflowException>(() =>
+            CalculadoraValorFinal.Calcular(decimal.MaxValue, 0m, decimal.MaxValue, 0m));
+    }
+
+    [Fact]
     public void Calcular_com_valor_original_negativo_por_erro_de_entrada_nao_fica_negativo()
     {
         // Regra de negócio não deveria permitir valor original negativo (validação

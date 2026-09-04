@@ -293,6 +293,17 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_Juros", "\"Juros\" >= 0"));
             b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_Multa", "\"Multa\" >= 0"));
             b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_ValorFinal", "\"ValorFinal\" >= 0"));
+            // Nenhum fluxo do escopo justifica desconto maior que o valor
+            // original (db-schema-reviewer, Passo 14).
+            b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_DescontoMenorQueOriginal", "\"Desconto\" <= \"ValorOriginal\""));
+
+            // Token de concorrência otimista via xmin (coluna de sistema do
+            // Postgres, sem migration/coluna nova) — ContaPagar vai ser
+            // editada por fluxos concorrentes em breve (aprovação, Passo 18;
+            // pagamento, Passo 19); sem isso, dois usuários poderiam agir
+            // sobre a mesma conta sem que o segundo saiba que o estado mudou
+            // debaixo dele (db-schema-reviewer, Passo 14).
+            b.UseXminAsConcurrencyToken();
         });
     }
 
