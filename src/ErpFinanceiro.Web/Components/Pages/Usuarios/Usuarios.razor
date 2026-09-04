@@ -1,0 +1,63 @@
+@page "/usuarios"
+@attribute [Authorize(Roles = "Administrador")]
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<Usuario> UserManager
+
+<PageTitle>Usuários</PageTitle>
+
+<h1>Usuários</h1>
+
+<p>
+    Página restrita ao perfil <strong>Administrador</strong> — serve, por
+    enquanto, para validar login/perfis (Passo 4 do plano do MVP). O CRUD
+    completo de usuários entra em um passo futuro.
+</p>
+
+@if (usuarios is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Perfil</th>
+                <th>Ativo</th>
+                <th>Último login</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var (usuario, papeis) in usuarios)
+            {
+                <tr>
+                    <td>@usuario.Nome</td>
+                    <td>@usuario.Email</td>
+                    <td>@string.Join(", ", papeis)</td>
+                    <td>@(usuario.Ativo ? "Sim" : "Não")</td>
+                    <td>@(usuario.UltimoLogin?.ToString("g") ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<(Usuario Usuario, IList<string> Papeis)>? usuarios;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var lista = new List<(Usuario, IList<string>)>();
+        foreach (var usuario in UserManager.Users.ToList())
+        {
+            var papeis = await UserManager.GetRolesAsync(usuario);
+            lista.Add((usuario, papeis));
+        }
+
+        usuarios = lista;
+    }
+}

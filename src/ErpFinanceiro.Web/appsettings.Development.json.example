@@ -2,6 +2,17 @@
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Port=5432;Database=erp_financeiro;Username=erp;Password=changeme-local-dev"
   },
+  "SeedAdministrador": {
+    "Nome": "Administrador",
+    "Email": "admin@erpfinanceiro.local",
+    "SenhaInicial": "Admin@123456"
+  },
+  "SeedUsuarioTeste": {
+    "Nome": "Usuária de Consulta (teste)",
+    "Email": "consulta@erpfinanceiro.local",
+    "SenhaInicial": "Consulta@123456",
+    "Perfil": "Consulta"
+  },
   "Logging": {
     "LogLevel": {
       "Default": "Information",

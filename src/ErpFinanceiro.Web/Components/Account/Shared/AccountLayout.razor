@@ -1,0 +1,28 @@
+@inherits LayoutComponentBase
+@layout ErpFinanceiro.Web.Components.Layout.MainLayout
+@inject NavigationManager NavigationManager
+
+@if (HttpContext is null)
+{
+    <p>Carregando...</p>
+}
+else
+{
+    @Body
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (HttpContext is null)
+        {
+            // Se este código rodar, estamos em modo interativo, sem HttpContext.
+            // As páginas de Identity precisam gravar cookies, o que exige um
+            // HttpContext — para isso, forçamos a volta ao modo estático.
+            NavigationManager.Refresh(forceReload: true);
+        }
+    }
+}
