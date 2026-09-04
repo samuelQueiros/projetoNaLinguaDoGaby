@@ -46,6 +46,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<Anexo> Anexos => Set<Anexo>();
 
+    public DbSet<NotaFiscal> NotasFiscais => Set<NotaFiscal>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -435,6 +437,31 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.HasIndex(a => a.EnviadoPorId);
 
             b.ToTable(t => t.HasCheckConstraint("CK_Anexos_TamanhoBytes", "\"TamanhoBytes\" >= 0"));
+        });
+
+        builder.Entity<NotaFiscal>(b =>
+        {
+            b.ToTable("NotasFiscais");
+            b.Property(n => n.Numero).IsRequired().HasMaxLength(60);
+            b.Property(n => n.Serie).HasMaxLength(20);
+            b.Property(n => n.Valor).HasColumnType("numeric(14,2)");
+            b.Property(n => n.Observacoes).HasMaxLength(2000);
+            b.Property(n => n.CriadoEm).HasDefaultValueSql("now()");
+
+            b.HasOne(n => n.Fornecedor).WithMany().HasForeignKey(n => n.FornecedorId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(n => n.ContaPagar).WithMany().HasForeignKey(n => n.ContaPagarId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne(n => n.Categoria).WithMany().HasForeignKey(n => n.CategoriaId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(n => n.CentroCusto).WithMany().HasForeignKey(n => n.CentroCustoId).OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(n => n.FornecedorId);
+            b.HasIndex(n => n.ContaPagarId);
+            // Busca por número (seção 7 do escopo) — não é único: fornecedores
+            // diferentes podem emitir NFs com o mesmo número.
+            b.HasIndex(n => n.Numero);
+            b.HasIndex(n => new { n.FornecedorId, n.Numero });
+            b.HasIndex(n => n.Emissao);
+
+            b.ToTable(t => t.HasCheckConstraint("CK_NotasFiscais_Valor", "\"Valor\" >= 0"));
         });
     }
 

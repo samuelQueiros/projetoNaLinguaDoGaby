@@ -1,0 +1,283 @@
+@page "/notas-fiscais"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using ErpFinanceiro.Application.Categorias
+@using ErpFinanceiro.Application.Fornecedores
+@using ErpFinanceiro.Application.NotasFiscais
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject IGerenciadorNotasFiscais Gerenciador
+@inject IGerenciadorFornecedores GerenciadorFornecedores
+@inject IGerenciadorCadastroSimples<Categoria> GerenciadorCategorias
+@inject IGerenciadorCadastroSimples<CentroCusto> GerenciadorCentrosCusto
+@inject UserManager<Usuario> UserManager
+
+<PageTitle>Notas fiscais</PageTitle>
+<h1>Notas fiscais</h1>
+
+<div class="mb-3 d-flex gap-2 align-items-end flex-wrap">
+    <div>
+        <label class="form-label">Número</label>
+        <input class="form-control" @bind="filtroNumero" />
+    </div>
+    <div>
+        <label class="form-label">Fornecedor</label>
+        <select class="form-select" @bind="filtroFornecedorId">
+            <option value="">(todos)</option>
+            @foreach (var f in fornecedores)
+            {
+                <option value="@f.Id">@f.RazaoSocial</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="form-label">Ano</label>
+        <input class="form-control" type="number" style="width: 7rem;" @bind="filtroAno" />
+    </div>
+    <button class="btn btn-outline-secondary" @onclick="BuscarAsync">Buscar</button>
+    <button class="btn btn-primary ms-auto" @onclick="() => AbrirFormulario(null)">+ Nova NF</button>
+</div>
+
+@if (notas is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <p class="text-muted">@notas.Count nota(s) — total R$ @notas.Sum(n => n.Valor).ToString("N2")</p>
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr><th>Número</th><th>Série</th><th>Fornecedor</th><th>Emissão</th><th class="text-end">Valor</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var n in notas)
+            {
+                <tr>
+                    <td>@n.Numero</td>
+                    <td>@n.Serie</td>
+                    <td>@n.Fornecedor?.RazaoSocial</td>
+                    <td>@n.Emissao.ToString("dd/MM/yyyy")</td>
+                    <td class="text-end">@n.Valor.ToString("C")</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirFormulario(n)">Editar</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ExcluirAsync(n.Id)">Excluir</button>
+                    </td>
+                </tr>
+            }
+            @if (notas.Count == 0)
+            {
+                <tr><td colspan="6" class="text-center text-muted">Nenhuma nota fiscal encontrada.</td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (formularioAberto)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <EditForm Model="modelo" OnValidSubmit="SalvarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="modal-header"><h5 class="modal-title">@(editandoId is null ? "Nova nota fiscal" : "Editar nota fiscal")</h5></div>
+                    <div class="modal-body">
+                        @if (erro is not null)
+                        {
+                            <div class="alert alert-danger">@erro</div>
+                        }
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Fornecedor</label>
+                                <InputSelect class="form-select" @bind-Value="modelo.FornecedorId">
+                                    <option value="@Guid.Empty">Selecione...</option>
+                                    @foreach (var f in fornecedores)
+                                    {
+                                        <option value="@f.Id">@f.RazaoSocial</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Número</label>
+                                <InputText class="form-control" @bind-Value="modelo.Numero" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Série</label>
+                                <InputText class="form-control" @bind-Value="modelo.Serie" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Emissão</label>
+                                <InputDate class="form-control" @bind-Value="modelo.Emissao" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Vencimento</label>
+                                <InputDate class="form-control" @bind-Value="modelo.Vencimento" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Valor</label>
+                                <InputNumber class="form-control" @bind-Value="modelo.Valor" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Categoria</label>
+                                <InputSelect class="form-select" @bind-Value="modelo.CategoriaId">
+                                    <option value="">(nenhuma)</option>
+                                    @foreach (var c in categorias)
+                                    {
+                                        <option value="@c.Id">@c.Nome</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Centro de custo</label>
+                                <InputSelect class="form-select" @bind-Value="modelo.CentroCustoId">
+                                    <option value="">(nenhum)</option>
+                                    @foreach (var c in centrosCusto)
+                                    {
+                                        <option value="@c.Id">@c.Nome</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Observações</label>
+                                <InputTextArea class="form-control" @bind-Value="modelo.Observacoes" />
+                            </div>
+                        </div>
+                        @if (editandoId is Guid nfId)
+                        {
+                            <PainelAnexos EntidadeTipo="EntidadeAnexo.NotaFiscal" EntidadeId="nfId" />
+                        }
+                        else
+                        {
+                            <p class="text-muted mt-3"><small>Salve a nota fiscal para anexar PDF/XML.</small></p>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="() => formularioAberto = false">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<NotaFiscal>? notas;
+    private List<Fornecedor> fornecedores = new();
+    private List<Categoria> categorias = new();
+    private List<CentroCusto> centrosCusto = new();
+
+    private string filtroNumero = "";
+    private string filtroFornecedorId = "";
+    private int? filtroAno;
+
+    private bool formularioAberto;
+    private Guid? editandoId;
+    private Modelo modelo = new();
+    private string? erro;
+    private Guid usuarioId;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await (AuthState ?? Task.FromResult(new AuthenticationState(new ClaimsPrincipal())));
+        usuarioId = (await UserManager.GetUserAsync(authState.User))?.Id ?? Guid.Empty;
+
+        fornecedores = (await GerenciadorFornecedores.ListarAsync()).ToList();
+        categorias = (await GerenciadorCategorias.ListarAsync(apenasAtivos: true)).ToList();
+        centrosCusto = (await GerenciadorCentrosCusto.ListarAsync(apenasAtivos: true)).ToList();
+        await BuscarAsync();
+    }
+
+    private async Task BuscarAsync()
+    {
+        var filtro = new FiltroNotasFiscais(
+            Numero: string.IsNullOrWhiteSpace(filtroNumero) ? null : filtroNumero,
+            FornecedorId: Guid.TryParse(filtroFornecedorId, out var fid) ? fid : null,
+            Ano: filtroAno);
+        notas = (await Gerenciador.ListarAsync(filtro)).ToList();
+    }
+
+    private void AbrirFormulario(NotaFiscal? nf)
+    {
+        erro = null;
+        editandoId = nf?.Id;
+        modelo = nf is null
+            ? new Modelo { Emissao = DateTime.Today }
+            : new Modelo
+            {
+                FornecedorId = nf.FornecedorId,
+                Numero = nf.Numero,
+                Serie = nf.Serie,
+                Emissao = nf.Emissao.ToDateTime(TimeOnly.MinValue),
+                Vencimento = nf.Vencimento?.ToDateTime(TimeOnly.MinValue),
+                Valor = nf.Valor,
+                CategoriaId = nf.CategoriaId,
+                CentroCustoId = nf.CentroCustoId,
+                Observacoes = nf.Observacoes,
+            };
+        formularioAberto = true;
+    }
+
+    private async Task SalvarAsync()
+    {
+        erro = null;
+        var input = new NotaFiscalInput(
+            modelo.FornecedorId,
+            null,
+            modelo.Numero,
+            modelo.Serie,
+            DateOnly.FromDateTime(modelo.Emissao),
+            modelo.Valor,
+            modelo.Vencimento is null ? null : DateOnly.FromDateTime(modelo.Vencimento.Value),
+            modelo.CategoriaId,
+            modelo.CentroCustoId,
+            modelo.Observacoes);
+
+        var resultado = editandoId is null
+            ? (await Gerenciador.CriarAsync(input, usuarioId)).Operacao
+            : await Gerenciador.EditarAsync(editandoId.Value, input, usuarioId);
+
+        if (!resultado.Sucesso)
+        {
+            erro = string.Join("; ", resultado.Erros);
+            return;
+        }
+
+        formularioAberto = false;
+        await BuscarAsync();
+    }
+
+    private async Task ExcluirAsync(Guid id)
+    {
+        await Gerenciador.ExcluirAsync(id, usuarioId);
+        await BuscarAsync();
+    }
+
+    private sealed class Modelo
+    {
+        public Guid FornecedorId { get; set; }
+
+        [Required(ErrorMessage = "Informe o número.")]
+        public string Numero { get; set; } = "";
+
+        public string? Serie { get; set; }
+
+        public DateTime Emissao { get; set; } = DateTime.Today;
+
+        public DateTime? Vencimento { get; set; }
+
+        [Range(0, double.MaxValue, ErrorMessage = "Valor não pode ser negativo.")]
+        public decimal Valor { get; set; }
+
+        public Guid? CategoriaId { get; set; }
+
+        public Guid? CentroCustoId { get; set; }
+
+        public string? Observacoes { get; set; }
+    }
+}

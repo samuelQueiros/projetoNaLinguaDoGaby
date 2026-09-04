@@ -5,6 +5,7 @@ using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
 using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Application.Fornecedores;
+using ErpFinanceiro.Application.NotasFiscais;
 using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure;
@@ -15,6 +16,7 @@ using ErpFinanceiro.Infrastructure.Categorias;
 using ErpFinanceiro.Infrastructure.ContasAPagar;
 using ErpFinanceiro.Infrastructure.Data;
 using ErpFinanceiro.Infrastructure.Fornecedores;
+using ErpFinanceiro.Infrastructure.NotasFiscais;
 using ErpFinanceiro.Infrastructure.Seguranca;
 using ErpFinanceiro.Infrastructure.Storage;
 using ErpFinanceiro.Infrastructure.Usuarios;
@@ -125,6 +127,7 @@ if (long.TryParse(builder.Configuration["Anexos:TamanhoMaximoBytes"], out var ma
 builder.Services.AddSingleton(opcoesAnexos);
 builder.Services.AddScoped<IArmazenamentoAnexos, ArmazenamentoAnexosDisco>();
 builder.Services.AddScoped<IGerenciadorAnexos, GerenciadorAnexos>();
+builder.Services.AddScoped<IGerenciadorNotasFiscais, GerenciadorNotasFiscais>();
 
 var app = builder.Build();
 
