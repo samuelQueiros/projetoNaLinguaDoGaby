@@ -13,6 +13,9 @@
     "SenhaInicial": "Consulta@123456",
     "Perfil": "Consulta"
   },
+  "Criptografia": {
+    "ChaveAes256Base64": "sAHHeGp0Z0T+Yg/tDf7vJtfzJO5+CeyX7QJ9JzmN0+M="
+  },
   "Logging": {
     "LogLevel": {
       "Default": "Information",

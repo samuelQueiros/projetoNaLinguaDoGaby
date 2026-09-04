@@ -1,4 +1,5 @@
 using ErpFinanceiro.Domain;
+using ErpFinanceiro.Infrastructure.Seguranca;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -13,14 +14,23 @@ namespace ErpFinanceiro.Infrastructure.Data;
 /// </summary>
 public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options)
+    private readonly CriptografiaAes256 criptografia;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, CriptografiaAes256 criptografia)
         : base(options)
     {
+        this.criptografia = criptografia;
     }
 
     public DbSet<Categoria> Categorias => Set<Categoria>();
 
     public DbSet<CentroCusto> CentrosDeCusto => Set<CentroCusto>();
+
+    public DbSet<FormaPagamento> FormasPagamento => Set<FormaPagamento>();
+
+    public DbSet<Fornecedor> Fornecedores => Set<Fornecedor>();
+
+    public DbSet<DadosBancariosFornecedor> DadosBancariosFornecedores => Set<DadosBancariosFornecedor>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -66,6 +76,86 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.Property(c => c.Ativo).HasDefaultValue(true);
             b.Property(c => c.CriadoEm).HasDefaultValueSql("now()");
             b.HasIndex(c => c.Nome).IsUnique().HasFilter("\"Ativo\" = true");
+        });
+
+        builder.Entity<FormaPagamento>(b =>
+        {
+            b.ToTable("FormasPagamento");
+            b.Property(f => f.Nome).IsRequired().HasMaxLength(100);
+            b.Property(f => f.Descricao).HasMaxLength(500);
+            b.Property(f => f.Ativo).HasDefaultValue(true);
+            b.Property(f => f.CriadoEm).HasDefaultValueSql("now()");
+            b.HasIndex(f => f.Nome).IsUnique().HasFilter("\"Ativo\" = true");
+
+            // Seed (Passo 8b, seção 4 do escopo) — data fixa (não now()) para
+            // o snapshot da migration ficar determinístico entre builds.
+            var seedEm = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            b.HasData(
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000001"), Nome = "PIX", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000002"), Nome = "Transferência bancária", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000003"), Nome = "TED", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000004"), Nome = "DOC", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000005"), Nome = "Boleto", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000006"), Nome = "Cartão de crédito", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000007"), Nome = "Cartão de débito", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000008"), Nome = "Débito automático", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000009"), Nome = "Dinheiro", CriadoEm = seedEm },
+                new FormaPagamento { Id = new Guid("00000000-0000-0000-0001-000000000010"), Nome = "Outros", CriadoEm = seedEm }
+            );
+        });
+
+        builder.Entity<Fornecedor>(b =>
+        {
+            b.ToTable("Fornecedores");
+            b.Property(f => f.RazaoSocial).IsRequired().HasMaxLength(200);
+            b.Property(f => f.NomeFantasia).HasMaxLength(200);
+            b.Property(f => f.CnpjCpf).IsRequired().HasMaxLength(20);
+            b.Property(f => f.InscricaoEstadual).HasMaxLength(30);
+            b.Property(f => f.Endereco).HasMaxLength(300);
+            b.Property(f => f.Telefone).HasMaxLength(30);
+            b.Property(f => f.Email).HasMaxLength(200);
+            b.Property(f => f.ContatoResponsavel).HasMaxLength(200);
+            b.Property(f => f.Observacoes).HasMaxLength(2000);
+            b.Property(f => f.CriadoEm).HasDefaultValueSql("now()");
+
+            // Único só entre os não excluídos (exclusão lógica via
+            // ExcluidoEm) — mesmo raciocínio do índice parcial de
+            // Categoria/CentroCusto (Passo 5).
+            b.HasIndex(f => f.CnpjCpf).IsUnique().HasFilter("\"ExcluidoEm\" IS NULL");
+
+            b.HasOne(f => f.FormaPagamentoPadrao)
+                .WithMany()
+                .HasForeignKey(f => f.FormaPagamentoPadraoId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<DadosBancariosFornecedor>(b =>
+        {
+            b.ToTable("DadosBancariosFornecedores");
+            b.Property(d => d.Banco).IsRequired().HasMaxLength(150);
+            b.Property(d => d.Agencia).IsRequired().HasMaxLength(20);
+            b.Property(d => d.CriadoEm).HasDefaultValueSql("now()");
+
+            // Conta e ChavePix cifrados em repouso (AES-256-GCM — CLAUDE.md
+            // seção 3). A conversão roda em toda leitura/escrita via EF;
+            // ChavePix é nullable, então precisa tratar null sem cifrar.
+            b.Property(d => d.Conta)
+                .IsRequired()
+                .HasMaxLength(500) // cifrado ocupa mais espaço que o valor original
+                .HasConversion(v => criptografia.Cifrar(v), v => criptografia.Decifrar(v));
+
+            b.Property(d => d.ChavePix)
+                .HasMaxLength(500)
+                .HasConversion(
+                    v => v == null ? null : criptografia.Cifrar(v),
+                    v => v == null ? null : criptografia.Decifrar(v));
+
+            b.HasOne(d => d.Fornecedor)
+                .WithMany(f => f.DadosBancarios)
+                .HasForeignKey(d => d.FornecedorId)
+                .OnDelete(DeleteBehavior.Cascade); // dados bancários morrem com o fornecedor (não são referenciados por ContaPagar)
+
+            b.HasIndex(d => d.FornecedorId);
         });
     }
 

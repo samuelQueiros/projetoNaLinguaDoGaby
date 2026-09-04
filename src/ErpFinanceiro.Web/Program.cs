@@ -3,6 +3,7 @@ using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.Categorias;
 using ErpFinanceiro.Infrastructure.Data;
+using ErpFinanceiro.Infrastructure.Seguranca;
 using ErpFinanceiro.Infrastructure.Usuarios;
 using ErpFinanceiro.Web.Components;
 using ErpFinanceiro.Web.Components.Account;
@@ -27,6 +28,8 @@ builder.Services.AddAuthentication(options =>
         options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
     })
     .AddIdentityCookies();
+
+builder.Services.AddSingleton(new CriptografiaAes256(builder.Configuration["Criptografia:ChaveAes256Base64"] ?? ""));
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));

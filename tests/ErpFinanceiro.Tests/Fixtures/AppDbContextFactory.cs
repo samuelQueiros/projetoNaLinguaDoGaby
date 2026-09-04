@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using ErpFinanceiro.Infrastructure.Data;
+using ErpFinanceiro.Infrastructure.Seguranca;
 using Microsoft.EntityFrameworkCore;
 
 namespace ErpFinanceiro.Tests.Fixtures;
@@ -25,6 +27,9 @@ public static class AppDbContextFactory
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AppDbContext(options);
+
+        // Chave só para teste — nunca reaproveitar para dados reais.
+        var chaveDeTeste = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        return new AppDbContext(options, new CriptografiaAes256(chaveDeTeste));
     }
 }
