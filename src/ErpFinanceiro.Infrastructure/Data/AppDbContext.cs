@@ -36,6 +36,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<Cartao> Cartoes => Set<Cartao>();
 
+    public DbSet<ContaPagar> ContasPagar => Set<ContaPagar>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -203,6 +205,17 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
                 .HasConversion(
                     v => criptografia.Cifrar(v, "ContaBancariaEmpresa.Conta"),
                     v => criptografia.Decifrar(v, "ContaBancariaEmpresa.Conta"));
+            // Nota (db-schema-reviewer, Passo 12): Conta é cifrada com nonce
+            // aleatório — um índice único nela nunca detectaria duplicata
+            // (o mesmo valor gera ciphertexts diferentes a cada gravação).
+            // Duplicidade de conta, se necessária, fica para checagem na
+            // aplicação (decifrando) ou uma coluna de hash determinístico
+            // dedicada — não resolvido ainda, volume baixo o suficiente
+            // para não bloquear o MVP.
+
+            // Único só entre as ativas — mesmo padrão de Categoria/CentroCusto/FormaPagamento.
+            b.HasIndex(c => c.Apelido).IsUnique().HasFilter("\"Ativo\" = true");
+            b.HasIndex(c => c.Ativo);
         });
 
         builder.Entity<Cartao>(b =>
@@ -221,10 +234,65 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
                 .OnDelete(DeleteBehavior.Restrict);
 
             b.HasIndex(c => c.ResponsavelId);
+            b.HasIndex(c => c.Status);
 
             b.ToTable(t => t.HasCheckConstraint("CK_Cartoes_DiaFechamento", "\"DiaFechamento\" BETWEEN 1 AND 31"));
             b.ToTable(t => t.HasCheckConstraint("CK_Cartoes_DiaVencimento", "\"DiaVencimento\" BETWEEN 1 AND 31"));
             b.ToTable(t => t.HasCheckConstraint("CK_Cartoes_Limite", "\"Limite\" >= 0"));
+            b.ToTable(t => t.HasCheckConstraint("CK_Cartoes_UltimosQuatroDigitos", "\"UltimosQuatroDigitos\" ~ '^[0-9]{4}$'"));
+        });
+
+        builder.Entity<ContaPagar>(b =>
+        {
+            b.ToTable("ContasPagar");
+            b.Property(c => c.Descricao).IsRequired().HasMaxLength(300);
+            b.Property(c => c.ValorOriginal).HasColumnType("numeric(14,2)");
+            b.Property(c => c.Desconto).HasColumnType("numeric(14,2)");
+            b.Property(c => c.Juros).HasColumnType("numeric(14,2)");
+            b.Property(c => c.Multa).HasColumnType("numeric(14,2)");
+            b.Property(c => c.ValorFinal).HasColumnType("numeric(14,2)");
+            b.Property(c => c.MotivoCancelamentoRejeicao).HasMaxLength(1000);
+            b.Property(c => c.CriadoEm).HasDefaultValueSql("now()");
+
+            b.HasOne(c => c.Fornecedor)
+                .WithMany()
+                .HasForeignKey(c => c.FornecedorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(c => c.Categoria)
+                .WithMany()
+                .HasForeignKey(c => c.CategoriaId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(c => c.CentroCusto)
+                .WithMany()
+                .HasForeignKey(c => c.CentroCustoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(c => c.FormaPagamento)
+                .WithMany()
+                .HasForeignKey(c => c.FormaPagamentoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(c => c.CriadoPor)
+                .WithMany()
+                .HasForeignKey(c => c.CriadoPorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Índices para os filtros de relatório/dashboard (Passos 28-29 do
+            // plano) — fornecedor, vencimento e os dois status são os
+            // critérios de busca mais usados.
+            b.HasIndex(c => c.FornecedorId);
+            b.HasIndex(c => c.Vencimento);
+            b.HasIndex(c => c.StatusFinanceiro);
+            b.HasIndex(c => c.StatusAprovacao);
+            b.HasIndex(c => c.ExcluidoEm);
+
+            b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_ValorOriginal", "\"ValorOriginal\" >= 0"));
+            b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_Desconto", "\"Desconto\" >= 0"));
+            b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_Juros", "\"Juros\" >= 0"));
+            b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_Multa", "\"Multa\" >= 0"));
+            b.ToTable(t => t.HasCheckConstraint("CK_ContasPagar_ValorFinal", "\"ValorFinal\" >= 0"));
         });
     }
 
