@@ -5,7 +5,7 @@ namespace ErpFinanceiro.Domain;
 /// ContaPagar, NotaFiscal e CartaoDespesa. Nunca excluída fisicamente:
 /// desativada via Ativo = false.
 /// </summary>
-public class Categoria : IEntidadeAuditavel
+public class Categoria : IEntidadeAuditavel, ICadastroSimples
 {
     public Guid Id { get; set; }
 

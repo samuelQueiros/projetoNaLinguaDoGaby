@@ -5,7 +5,7 @@ namespace ErpFinanceiro.Domain;
 /// gerou uma despesa. Cadastro editável, usado em ContaPagar, NotaFiscal e
 /// CartaoDespesa. Nunca excluído fisicamente: desativado via Ativo = false.
 /// </summary>
-public class CentroCusto : IEntidadeAuditavel
+public class CentroCusto : IEntidadeAuditavel, ICadastroSimples
 {
     public Guid Id { get; set; }
 

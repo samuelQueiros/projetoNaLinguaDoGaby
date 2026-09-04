@@ -1,8 +1,10 @@
-namespace ErpFinanceiro.Application.Usuarios;
+namespace ErpFinanceiro.Application;
 
 /// <summary>
 /// Resultado padrão de um caso de uso de escrita: sucesso/falha + lista de
 /// erros legíveis (mensagens do Identity ou de validação de negócio).
+/// Compartilhado por todos os módulos de Application (Usuarios, Categorias
+/// etc.) em vez de cada um redeclarar o mesmo tipo.
 /// </summary>
 public sealed record ResultadoOperacao(bool Sucesso, IReadOnlyList<string> Erros)
 {

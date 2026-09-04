@@ -1,3 +1,4 @@
+using ErpFinanceiro.Application;
 using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
 using Microsoft.AspNetCore.Identity;
