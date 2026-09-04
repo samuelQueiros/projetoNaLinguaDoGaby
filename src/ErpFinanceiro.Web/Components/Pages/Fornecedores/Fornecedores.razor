@@ -1,0 +1,88 @@
+@page "/fornecedores"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using ErpFinanceiro.Application.Fornecedores
+@using Microsoft.AspNetCore.Authorization
+@inject IGerenciadorFornecedores Gerenciador
+@inject NavigationManager NavigationManager
+
+<PageTitle>Fornecedores</PageTitle>
+
+<h1>Fornecedores</h1>
+
+<div class="mb-3 d-flex gap-3 align-items-end flex-wrap">
+    <div>
+        <label class="form-label">Buscar por razão social, nome fantasia ou CNPJ/CPF</label>
+        <input class="form-control" style="min-width: 24rem;" @bind="filtro" @bind:event="oninput" placeholder="Digite para filtrar..." />
+    </div>
+    <button class="btn btn-primary ms-auto" @onclick="NovoFornecedor">+ Novo fornecedor</button>
+</div>
+
+@if (fornecedores is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Razão social</th>
+                <th>Nome fantasia</th>
+                <th>CNPJ/CPF</th>
+                <th>Forma de pagamento padrão</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var f in Filtrados)
+            {
+                <tr style="cursor: pointer;" @onclick="() => AbrirFornecedor(f.Id)">
+                    <td>@f.RazaoSocial</td>
+                    <td>@f.NomeFantasia</td>
+                    <td>@FormatarDocumento(f.CnpjCpf)</td>
+                    <td>@(f.FormaPagamentoPadrao?.Nome ?? "—")</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirFornecedor(f.Id)" @onclick:stopPropagation="true">Abrir</button>
+                    </td>
+                </tr>
+            }
+            @if (!Filtrados.Any())
+            {
+                <tr>
+                    <td colspan="5" class="text-center text-muted">Nenhum fornecedor encontrado.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ErpFinanceiro.Domain.Fornecedor>? fornecedores;
+    private string filtro = "";
+
+    private IEnumerable<ErpFinanceiro.Domain.Fornecedor> Filtrados =>
+        (fornecedores ?? Enumerable.Empty<ErpFinanceiro.Domain.Fornecedor>())
+        .Where(f => string.IsNullOrWhiteSpace(filtro) ||
+                    f.RazaoSocial.Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                    (f.NomeFantasia?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (SomenteDigitos(filtro).Length > 0 && f.CnpjCpf.Contains(SomenteDigitos(filtro))));
+
+    protected override async Task OnInitializedAsync()
+    {
+        fornecedores = (await Gerenciador.ListarAsync()).ToList();
+    }
+
+    private void NovoFornecedor() => NavigationManager.NavigateTo("/fornecedores/novo");
+
+    private void AbrirFornecedor(Guid id) => NavigationManager.NavigateTo($"/fornecedores/{id}");
+
+    private static string SomenteDigitos(string valor) => new(valor.Where(char.IsDigit).ToArray());
+
+    private static string FormatarDocumento(string digitos) => digitos.Length switch
+    {
+        14 => $"{digitos[..2]}.{digitos[2..5]}.{digitos[5..8]}/{digitos[8..12]}-{digitos[12..]}",
+        11 => $"{digitos[..3]}.{digitos[3..6]}.{digitos[6..9]}-{digitos[9..]}",
+        _ => digitos,
+    };
+}
