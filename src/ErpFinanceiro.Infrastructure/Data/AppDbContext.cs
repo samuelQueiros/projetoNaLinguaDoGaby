@@ -109,7 +109,15 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.ToTable("Fornecedores");
             b.Property(f => f.RazaoSocial).IsRequired().HasMaxLength(200);
             b.Property(f => f.NomeFantasia).HasMaxLength(200);
-            b.Property(f => f.CnpjCpf).IsRequired().HasMaxLength(20);
+            // Normalizado (só dígitos) na conversão, não só no caso de uso —
+            // garante que "12.345.678/0001-99" e "12345678000199" nunca
+            // coexistam como fornecedores "diferentes" no índice único,
+            // mesmo que algo grave via EF sem passar por
+            // GerenciadorFornecedores (recomendação do db-schema-reviewer).
+            b.Property(f => f.CnpjCpf)
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasConversion(v => SomenteDigitos(v), v => v);
             b.Property(f => f.InscricaoEstadual).HasMaxLength(30);
             b.Property(f => f.Endereco).HasMaxLength(300);
             b.Property(f => f.Telefone).HasMaxLength(30);
@@ -122,6 +130,11 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             // ExcluidoEm) — mesmo raciocínio do índice parcial de
             // Categoria/CentroCusto (Passo 5).
             b.HasIndex(f => f.CnpjCpf).IsUnique().HasFilter("\"ExcluidoEm\" IS NULL");
+
+            // Índice avulso em ExcluidoEm: filtros de listagem/relatório de
+            // ContaPagar (Passo 14+) vão consultar fornecedores ativos por
+            // nome, não só por CNPJ — recomendação do db-schema-reviewer.
+            b.HasIndex(f => f.ExcluidoEm);
 
             b.HasOne(f => f.FormaPagamentoPadrao)
                 .WithMany()
@@ -138,22 +151,32 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
             // Conta e ChavePix cifrados em repouso (AES-256-GCM — CLAUDE.md
             // seção 3). A conversão roda em toda leitura/escrita via EF;
-            // ChavePix é nullable, então precisa tratar null sem cifrar.
+            // ChavePix é nullable, então precisa tratar null sem cifrar. O
+            // contexto (AAD) amarra o cifrado à coluna — ver observação de
+            // limitação em CriptografiaAes256.
             b.Property(d => d.Conta)
                 .IsRequired()
                 .HasMaxLength(500) // cifrado ocupa mais espaço que o valor original
-                .HasConversion(v => criptografia.Cifrar(v), v => criptografia.Decifrar(v));
+                .HasConversion(
+                    v => criptografia.Cifrar(v, "DadosBancariosFornecedor.Conta"),
+                    v => criptografia.Decifrar(v, "DadosBancariosFornecedor.Conta"));
 
             b.Property(d => d.ChavePix)
                 .HasMaxLength(500)
                 .HasConversion(
-                    v => v == null ? null : criptografia.Cifrar(v),
-                    v => v == null ? null : criptografia.Decifrar(v));
+                    v => v == null ? null : criptografia.Cifrar(v, "DadosBancariosFornecedor.ChavePix"),
+                    v => v == null ? null : criptografia.Decifrar(v, "DadosBancariosFornecedor.ChavePix"));
 
             b.HasOne(d => d.Fornecedor)
                 .WithMany(f => f.DadosBancarios)
                 .HasForeignKey(d => d.FornecedorId)
-                .OnDelete(DeleteBehavior.Cascade); // dados bancários morrem com o fornecedor (não são referenciados por ContaPagar)
+                .OnDelete(DeleteBehavior.Cascade);
+            // Cascade é rede de segurança para exclusão física fora do fluxo
+            // normal (script de correção, teste) — Fornecedor nunca é
+            // excluído fisicamente pela aplicação (só ExcluidoEm), então
+            // isso não faz parte de nenhum caso de uso real. Nunca expor um
+            // "excluir fornecedor" físico em Application (db-schema-reviewer,
+            // Passo 8/9).
 
             b.HasIndex(d => d.FornecedorId);
         });
@@ -192,4 +215,13 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             }
         }
     }
+
+    /// <summary>
+    /// Normaliza CNPJ/CPF removendo pontuação antes de gravar — garante que
+    /// "12.345.678/0001-99" e "12345678000199" nunca coexistam como
+    /// fornecedores "diferentes" no índice único, mesmo se algo gravar via
+    /// EF sem passar por GerenciadorFornecedores (recomendação do
+    /// db-schema-reviewer, Passo 8/9).
+    /// </summary>
+    private static string SomenteDigitos(string valor) => new(valor.Where(char.IsDigit).ToArray());
 }
