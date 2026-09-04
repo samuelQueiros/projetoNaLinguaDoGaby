@@ -1,6 +1,7 @@
 using ErpFinanceiro.Application;
 using ErpFinanceiro.Application.Anexos;
 using ErpFinanceiro.Application.Auditoria;
+using ErpFinanceiro.Application.Boletos;
 using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
 using ErpFinanceiro.Application.ContasAPagar;
@@ -11,6 +12,7 @@ using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure;
 using ErpFinanceiro.Infrastructure.Anexos;
 using ErpFinanceiro.Infrastructure.Auditoria;
+using ErpFinanceiro.Infrastructure.Boletos;
 using ErpFinanceiro.Infrastructure.Cartoes;
 using ErpFinanceiro.Infrastructure.Categorias;
 using ErpFinanceiro.Infrastructure.ContasAPagar;
@@ -128,6 +130,7 @@ builder.Services.AddSingleton(opcoesAnexos);
 builder.Services.AddScoped<IArmazenamentoAnexos, ArmazenamentoAnexosDisco>();
 builder.Services.AddScoped<IGerenciadorAnexos, GerenciadorAnexos>();
 builder.Services.AddScoped<IGerenciadorNotasFiscais, GerenciadorNotasFiscais>();
+builder.Services.AddScoped<IGerenciadorBoletos, GerenciadorBoletos>();
 
 var app = builder.Build();
 

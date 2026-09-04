@@ -48,6 +48,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<NotaFiscal> NotasFiscais => Set<NotaFiscal>();
 
+    public DbSet<Boleto> Boletos => Set<Boleto>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -462,6 +464,32 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.HasIndex(n => n.Emissao);
 
             b.ToTable(t => t.HasCheckConstraint("CK_NotasFiscais_Valor", "\"Valor\" >= 0"));
+        });
+
+        builder.Entity<Boleto>(b =>
+        {
+            b.ToTable("Boletos");
+            b.Property(x => x.Numero).IsRequired().HasMaxLength(60);
+            b.Property(x => x.LinhaDigitavel).IsRequired().HasMaxLength(100);
+            b.Property(x => x.CodigoBarras).HasMaxLength(60);
+            b.Property(x => x.Valor).HasColumnType("numeric(14,2)");
+            b.Property(x => x.Banco).HasMaxLength(150);
+            b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.Observacoes).HasMaxLength(2000);
+            b.Property(x => x.CriadoEm).HasDefaultValueSql("now()");
+
+            b.HasOne(x => x.Fornecedor).WithMany().HasForeignKey(x => x.FornecedorId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.ContaPagar).WithMany().HasForeignKey(x => x.ContaPagarId).OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(x => x.FornecedorId);
+            b.HasIndex(x => x.ContaPagarId);
+            // Busca por número (seção 8 do escopo) — não é único: fornecedores
+            // diferentes podem emitir boletos com o mesmo número.
+            b.HasIndex(x => x.Numero);
+            b.HasIndex(x => x.Vencimento);
+            b.HasIndex(x => x.Status);
+
+            b.ToTable(t => t.HasCheckConstraint("CK_Boletos_Valor", "\"Valor\" >= 0"));
         });
     }
 
