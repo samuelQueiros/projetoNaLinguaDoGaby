@@ -1,10 +1,14 @@
+using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
+using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
+using ErpFinanceiro.Infrastructure.Auditoria;
 using ErpFinanceiro.Infrastructure.Cartoes;
 using ErpFinanceiro.Infrastructure.Categorias;
+using ErpFinanceiro.Infrastructure.ContasAPagar;
 using ErpFinanceiro.Infrastructure.Data;
 using ErpFinanceiro.Infrastructure.Fornecedores;
 using ErpFinanceiro.Infrastructure.Seguranca;
@@ -85,6 +89,8 @@ builder.Services.AddScoped(typeof(IGerenciadorCadastroSimples<>), typeof(Gerenci
 builder.Services.AddScoped<IGerenciadorFornecedores, GerenciadorFornecedores>();
 builder.Services.AddScoped<IGerenciadorContasBancariasEmpresa, GerenciadorContasBancariasEmpresa>();
 builder.Services.AddScoped<IGerenciadorCartoes, GerenciadorCartoes>();
+builder.Services.AddScoped<IRegistradorAuditoria, RegistradorAuditoriaProvisorio>();
+builder.Services.AddScoped<IGerenciadorContasPagar, GerenciadorContasPagar>();
 
 var app = builder.Build();
 

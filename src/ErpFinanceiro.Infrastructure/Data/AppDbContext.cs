@@ -302,8 +302,9 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             // editada por fluxos concorrentes em breve (aprovação, Passo 18;
             // pagamento, Passo 19); sem isso, dois usuários poderiam agir
             // sobre a mesma conta sem que o segundo saiba que o estado mudou
-            // debaixo dele (db-schema-reviewer, Passo 14).
-            b.UseXminAsConcurrencyToken();
+            // debaixo dele (db-schema-reviewer, Passo 14). UseXminAsConcurrencyToken
+            // está obsoleto no Npgsql atual — substituído pela forma padrão do EF Core.
+            b.Property<uint>("xmin").HasColumnName("xmin").IsRowVersion();
         });
     }
 
