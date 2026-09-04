@@ -6,11 +6,13 @@
  * verde para o detalhe decorativo do topo de página.
  */
 :root {
-    --cor-primaria: #2952cc;
-    --cor-primaria-escura: #1e3fa3;
-    --cor-primaria-suave: #eaf0ff;
-    --cor-acento: #22c55e;
-    --cor-texto: #1f2937;
+    /* Paleta amostrada da logo real da ONRTDPJ (esfera azul/verde + "N"
+       em azul-marinho) — ver wwwroot/img/onrtdpj-*.png. */
+    --cor-primaria: #1c2f8f;
+    --cor-primaria-escura: #14226b;
+    --cor-primaria-suave: #eaecfb;
+    --cor-acento: #1fd16a;
+    --cor-texto: #0f1a3d;
     --cor-texto-suave: #6b7280;
     --cor-fundo: #f7f8fa;
     --cor-superficie: #ffffff;
