@@ -65,7 +65,19 @@ public sealed class FluxoAprovacao(AppDbContext db, UserManager<Usuario> userMan
             Motivo = motivo,
         });
 
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // ContaPagar usa xmin como token de concorrência (Passo 14) —
+            // outro usuário alterou a mesma conta entre a leitura e a
+            // gravação (ex.: dois Gestores aprovando ao mesmo tempo).
+            // Cenário realista, não um edge case raro — recomendação do
+            // security-auditor no Passo 18.
+            return ResultadoOperacao.Falha("Esta conta foi alterada por outro usuário. Recarregue e tente novamente.");
+        }
 
         await auditoria.RegistrarAsync(usuarioId, acao.ToString(), nameof(ContaPagar), contaPagarId,
             new { StatusAprovacao = statusAnterior }, new { conta.StatusAprovacao });

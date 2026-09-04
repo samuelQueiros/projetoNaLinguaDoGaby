@@ -40,6 +40,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<AprovacaoConta> AprovacoesConta => Set<AprovacaoConta>();
 
+    public DbSet<Pagamento> Pagamentos => Set<Pagamento>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -315,6 +317,12 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.Property(a => a.Motivo).HasMaxLength(1000);
             b.Property(a => a.Data).HasDefaultValueSql("now()");
 
+            // Convertido para string (não o int default do EF) para o CHECK
+            // abaixo comparar pelo nome, não pela posição do enum — um int
+            // travado como "<> 1" quebraria silenciosamente se alguém
+            // reordenasse AcaoAprovacao no futuro (db-schema-reviewer, Passo 18).
+            b.Property(a => a.Acao).HasConversion<string>().HasMaxLength(20);
+
             b.HasOne(a => a.ContaPagar)
                 .WithMany()
                 .HasForeignKey(a => a.ContaPagarId)
@@ -326,12 +334,58 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
                 .OnDelete(DeleteBehavior.Restrict);
 
             b.HasIndex(a => a.ContaPagarId);
+            b.HasIndex(a => a.UsuarioId);
 
             // Motivo obrigatório quando a ação é rejeição — mesma regra que
             // o caso de uso valida em Application, reforçada no schema.
             b.ToTable(t => t.HasCheckConstraint(
                 "CK_AprovacoesConta_MotivoObrigatorioSeRejeitada",
-                "\"Acao\" <> 1 OR (\"Motivo\" IS NOT NULL AND length(trim(\"Motivo\")) > 0)"));
+                "\"Acao\" <> 'Rejeitada' OR (\"Motivo\" IS NOT NULL AND length(trim(\"Motivo\")) > 0)"));
+        });
+
+        builder.Entity<Pagamento>(b =>
+        {
+            b.ToTable("Pagamentos");
+            b.Property(p => p.ValorPago).HasColumnType("numeric(14,2)");
+            b.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
+            b.Property(p => p.MotivoEstorno).HasMaxLength(1000);
+            b.Property(p => p.CriadoEm).HasDefaultValueSql("now()");
+
+            b.HasOne(p => p.ContaPagar)
+                .WithMany()
+                .HasForeignKey(p => p.ContaPagarId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(p => p.FormaPagamento)
+                .WithMany()
+                .HasForeignKey(p => p.FormaPagamentoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(p => p.ContaBancariaEmpresa)
+                .WithMany()
+                .HasForeignKey(p => p.ContaBancariaEmpresaId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(p => p.Cartao)
+                .WithMany()
+                .HasForeignKey(p => p.CartaoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(p => p.RegistradoPor)
+                .WithMany()
+                .HasForeignKey(p => p.RegistradoPorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(p => p.ContaPagarId);
+            b.HasIndex(p => p.Status);
+            b.HasIndex(p => p.RegistradoPorId);
+
+            // Exatamente um de ContaBancariaEmpresaId/CartaoId — "OU", nunca
+            // os dois nem nenhum (Passo 19 do plano).
+            b.ToTable(t => t.HasCheckConstraint(
+                "CK_Pagamentos_ContaOuCartaoExclusivo",
+                "((\"ContaBancariaEmpresaId\" IS NOT NULL)::int + (\"CartaoId\" IS NOT NULL)::int) = 1"));
+            b.ToTable(t => t.HasCheckConstraint("CK_Pagamentos_ValorPago", "\"ValorPago\" > 0"));
         });
     }
 

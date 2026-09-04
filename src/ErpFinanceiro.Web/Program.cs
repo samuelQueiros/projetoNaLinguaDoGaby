@@ -1,3 +1,4 @@
+using ErpFinanceiro.Application;
 using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
@@ -5,6 +6,7 @@ using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
+using ErpFinanceiro.Infrastructure;
 using ErpFinanceiro.Infrastructure.Auditoria;
 using ErpFinanceiro.Infrastructure.Cartoes;
 using ErpFinanceiro.Infrastructure.Categorias;
@@ -102,6 +104,8 @@ builder.Services.AddScoped<IGerenciadorCartoes, GerenciadorCartoes>();
 builder.Services.AddScoped<IRegistradorAuditoria, RegistradorAuditoriaProvisorio>();
 builder.Services.AddScoped<IGerenciadorContasPagar, GerenciadorContasPagar>();
 builder.Services.AddScoped<IFluxoAprovacao, FluxoAprovacao>();
+builder.Services.AddScoped<IGerenciadorPagamentos, GerenciadorPagamentos>();
+builder.Services.AddSingleton<IRelogio, RelogioSistema>();
 
 var app = builder.Build();
 

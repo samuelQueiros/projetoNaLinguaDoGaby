@@ -3,6 +3,7 @@ using System;
 using ErpFinanceiro.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ErpFinanceiro.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260904025433_AprovacaoContaAcaoString")]
+    partial class AprovacaoContaAcaoString
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -590,75 +593,6 @@ namespace ErpFinanceiro.Infrastructure.Data.Migrations
                     b.ToTable("Fornecedores", (string)null);
                 });
 
-            modelBuilder.Entity("ErpFinanceiro.Domain.Pagamento", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("AtualizadoEm")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CartaoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ComprovanteAnexoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ContaBancariaEmpresaId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ContaPagarId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<DateOnly>("Data")
-                        .HasColumnType("date");
-
-                    b.Property<Guid?>("FormaPagamentoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("MotivoEstorno")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid>("RegistradoPorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<decimal>("ValorPago")
-                        .HasColumnType("numeric(14,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CartaoId");
-
-                    b.HasIndex("ContaBancariaEmpresaId");
-
-                    b.HasIndex("ContaPagarId");
-
-                    b.HasIndex("FormaPagamentoId");
-
-                    b.HasIndex("RegistradoPorId");
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("Pagamentos", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_Pagamentos_ContaOuCartaoExclusivo", "((\"ContaBancariaEmpresaId\" IS NOT NULL)::int + (\"CartaoId\" IS NOT NULL)::int) = 1");
-
-                            t.HasCheckConstraint("CK_Pagamentos_ValorPago", "\"ValorPago\" > 0");
-                        });
-                });
-
             modelBuilder.Entity("ErpFinanceiro.Domain.Usuario", b =>
                 {
                     b.Property<Guid>("Id")
@@ -956,46 +890,6 @@ namespace ErpFinanceiro.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("FormaPagamentoPadrao");
-                });
-
-            modelBuilder.Entity("ErpFinanceiro.Domain.Pagamento", b =>
-                {
-                    b.HasOne("ErpFinanceiro.Domain.Cartao", "Cartao")
-                        .WithMany()
-                        .HasForeignKey("CartaoId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ErpFinanceiro.Domain.ContaBancariaEmpresa", "ContaBancariaEmpresa")
-                        .WithMany()
-                        .HasForeignKey("ContaBancariaEmpresaId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ErpFinanceiro.Domain.ContaPagar", "ContaPagar")
-                        .WithMany()
-                        .HasForeignKey("ContaPagarId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ErpFinanceiro.Domain.FormaPagamento", "FormaPagamento")
-                        .WithMany()
-                        .HasForeignKey("FormaPagamentoId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ErpFinanceiro.Domain.Usuario", "RegistradoPor")
-                        .WithMany()
-                        .HasForeignKey("RegistradoPorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Cartao");
-
-                    b.Navigation("ContaBancariaEmpresa");
-
-                    b.Navigation("ContaPagar");
-
-                    b.Navigation("FormaPagamento");
-
-                    b.Navigation("RegistradoPor");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>

@@ -143,4 +143,64 @@ public class FluxoAprovacaoTests
 
         Assert.False(resultado.Sucesso);
     }
+
+    [Fact]
+    public async Task AprovarAsync_conta_ja_aprovada_nao_pode_ser_rejeitada()
+    {
+        var (db, fluxo, userManager, conta) = await PrepararAsync();
+        var gestor = await CriarUsuarioComPapelAsync(db, userManager, "Gestor");
+        await fluxo.AprovarAsync(conta.Id, gestor.Id);
+
+        var resultado = await fluxo.RejeitarAsync(conta.Id, gestor.Id, "Mudei de ideia");
+
+        Assert.False(resultado.Sucesso);
+        var doBanco = await db.ContasPagar.FindAsync(conta.Id);
+        Assert.Equal(StatusAprovacao.Aprovada, doBanco!.StatusAprovacao);
+    }
+
+    [Fact]
+    public async Task RejeitarAsync_conta_ja_rejeitada_nao_pode_ser_aprovada()
+    {
+        var (db, fluxo, userManager, conta) = await PrepararAsync();
+        var gestor = await CriarUsuarioComPapelAsync(db, userManager, "Gestor");
+        await fluxo.RejeitarAsync(conta.Id, gestor.Id, "Documentação incompleta");
+
+        var resultado = await fluxo.AprovarAsync(conta.Id, gestor.Id);
+
+        Assert.False(resultado.Sucesso);
+        var doBanco = await db.ContasPagar.FindAsync(conta.Id);
+        Assert.Equal(StatusAprovacao.Rejeitada, doBanco!.StatusAprovacao);
+    }
+
+    [Fact]
+    public async Task AprovarAsync_com_conta_inexistente_retorna_falha()
+    {
+        var (db, fluxo, userManager, _) = await PrepararAsync();
+        var gestor = await CriarUsuarioComPapelAsync(db, userManager, "Gestor");
+
+        var resultado = await fluxo.AprovarAsync(Guid.NewGuid(), gestor.Id);
+
+        Assert.False(resultado.Sucesso);
+    }
+
+    [Fact]
+    public async Task AprovarAsync_com_usuario_inexistente_retorna_falha()
+    {
+        var (_, fluxo, _, conta) = await PrepararAsync();
+
+        var resultado = await fluxo.AprovarAsync(conta.Id, Guid.NewGuid());
+
+        Assert.False(resultado.Sucesso);
+    }
+
+    [Fact]
+    public async Task RejeitarAsync_com_motivo_somente_espacos_em_branco_retorna_falha()
+    {
+        var (db, fluxo, userManager, conta) = await PrepararAsync();
+        var gestor = await CriarUsuarioComPapelAsync(db, userManager, "Gestor");
+
+        var resultado = await fluxo.RejeitarAsync(conta.Id, gestor.Id, "   ");
+
+        Assert.False(resultado.Sucesso);
+    }
 }
