@@ -101,7 +101,8 @@ builder.Services.AddScoped(typeof(IGerenciadorCadastroSimples<>), typeof(Gerenci
 builder.Services.AddScoped<IGerenciadorFornecedores, GerenciadorFornecedores>();
 builder.Services.AddScoped<IGerenciadorContasBancariasEmpresa, GerenciadorContasBancariasEmpresa>();
 builder.Services.AddScoped<IGerenciadorCartoes, GerenciadorCartoes>();
-builder.Services.AddScoped<IRegistradorAuditoria, RegistradorAuditoriaProvisorio>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IRegistradorAuditoria, RegistradorAuditoria>();
 builder.Services.AddScoped<IGerenciadorContasPagar, GerenciadorContasPagar>();
 builder.Services.AddScoped<IFluxoAprovacao, FluxoAprovacao>();
 builder.Services.AddScoped<IGerenciadorPagamentos, GerenciadorPagamentos>();

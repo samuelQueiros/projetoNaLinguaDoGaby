@@ -42,6 +42,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<Pagamento> Pagamentos => Set<Pagamento>();
 
+    public DbSet<LogAuditoria> LogsAuditoria => Set<LogAuditoria>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -386,6 +388,28 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
                 "CK_Pagamentos_ContaOuCartaoExclusivo",
                 "((\"ContaBancariaEmpresaId\" IS NOT NULL)::int + (\"CartaoId\" IS NOT NULL)::int) = 1"));
             b.ToTable(t => t.HasCheckConstraint("CK_Pagamentos_ValorPago", "\"ValorPago\" > 0"));
+        });
+
+        builder.Entity<LogAuditoria>(b =>
+        {
+            b.ToTable("LogsAuditoria");
+            b.Property(l => l.Acao).IsRequired().HasMaxLength(100);
+            b.Property(l => l.TipoEntidade).IsRequired().HasMaxLength(100);
+            b.Property(l => l.Ip).HasMaxLength(45); // IPv6 cabe em 45 chars
+            b.Property(l => l.ValorAnteriorJson).HasColumnType("jsonb").HasColumnName("ValorAnterior");
+            b.Property(l => l.ValorNovoJson).HasColumnType("jsonb").HasColumnName("ValorNovo");
+            b.Property(l => l.Data).HasDefaultValueSql("now()");
+
+            b.HasOne(l => l.Usuario)
+                .WithMany()
+                .HasForeignKey(l => l.UsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Índice composto para a timeline por conta (Passo 22) — a
+            // consulta típica é WHERE TipoEntidade = X AND EntidadeId = Y
+            // ORDER BY Data.
+            b.HasIndex(l => new { l.TipoEntidade, l.EntidadeId, l.Data });
+            b.HasIndex(l => l.UsuarioId);
         });
     }
 
