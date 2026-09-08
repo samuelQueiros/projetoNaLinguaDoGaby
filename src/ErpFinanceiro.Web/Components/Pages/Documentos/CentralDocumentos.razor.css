@@ -1,0 +1,237 @@
+.central-cabecalho h1 {
+    margin-bottom: 0.15rem;
+}
+
+.central-cabecalho p {
+    color: var(--cor-texto-suave);
+    font-size: 1.05rem;
+    margin-bottom: 1.5rem;
+}
+
+/* ---------- Dropzone ---------- */
+.dropzone {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 15rem;
+    padding: 2rem;
+    border: 2px dashed var(--cor-borda);
+    border-radius: var(--raio-borda);
+    background-color: var(--cor-superficie);
+    text-align: center;
+    transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
+}
+
+.dropzone--ativo {
+    border-color: var(--cor-primaria);
+    background-color: var(--cor-primaria-suave);
+    transform: scale(1.005);
+}
+
+.dropzone--ocupado {
+    pointer-events: none;
+    opacity: .85;
+}
+
+/* input de arquivo invisível cobrindo a zona inteira — clique e drop */
+.dropzone__input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.dropzone__miolo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    pointer-events: none;
+}
+
+.dropzone__miolo strong {
+    font-size: 1.15rem;
+}
+
+.dropzone__miolo span {
+    color: var(--cor-texto-suave);
+}
+
+.dropzone__miolo small {
+    color: var(--cor-texto-suave);
+    font-size: .8rem;
+    margin-top: .25rem;
+}
+
+.dropzone__icone {
+    width: 3rem;
+    height: 3rem;
+    color: var(--cor-primaria);
+    margin-bottom: .5rem;
+}
+
+/* ---------- Aviso de sucesso ---------- */
+.aviso-sucesso {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .75rem 1rem;
+    border-radius: var(--raio-borda-sm);
+    background-color: #e7f9ef;
+    color: #0f7a3d;
+    font-weight: 500;
+}
+
+.aviso-sucesso svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    flex-shrink: 0;
+}
+
+/* ---------- Lista ---------- */
+.lista-cabecalho {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    margin: 2.25rem 0 1rem;
+}
+
+.lista-cabecalho h2 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.lista-cabecalho__status {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    color: var(--cor-texto-suave);
+    font-size: .85rem;
+}
+
+.doc-lista {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+}
+
+.doc-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.15rem;
+    background-color: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-borda);
+    box-shadow: var(--sombra-cartao);
+}
+
+.doc-card__icone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.doc-card__icone svg {
+    width: 1.35rem;
+    height: 1.35rem;
+}
+
+.doc-card__icone--azul    { background: #e6efff; color: #1c2f8f; }
+.doc-card__icone--verde   { background: #e7f9ef; color: #0f7a3d; }
+.doc-card__icone--vermelho{ background: #fdecec; color: #c0392b; }
+.doc-card__icone--cinza   { background: #f0f1f3; color: #6b7280; }
+
+.doc-card__texto {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.doc-card__nome {
+    font-weight: 600;
+    color: var(--cor-texto);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.doc-card__nome:hover {
+    text-decoration: underline;
+}
+
+.doc-card__status {
+    font-size: .9rem;
+}
+
+.doc-card__status--azul    { color: #1c2f8f; }
+.doc-card__status--verde   { color: #0f7a3d; font-weight: 600; }
+.doc-card__status--vermelho{ color: #c0392b; }
+.doc-card__status--cinza   { color: #6b7280; }
+
+.doc-card__detalhe {
+    font-size: .8rem;
+    color: var(--cor-texto-suave);
+}
+
+.doc-card__acao {
+    flex-shrink: 0;
+}
+
+.doc-card__acao .btn {
+    white-space: nowrap;
+}
+
+.doc-card__aguarde {
+    font-size: .85rem;
+    color: var(--cor-texto-suave);
+}
+
+/* ---------- Vazio ---------- */
+.vazio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 3rem 1rem;
+    color: var(--cor-texto-suave);
+    text-align: center;
+}
+
+.vazio svg {
+    width: 3.5rem;
+    height: 3.5rem;
+    opacity: .5;
+}
+
+.vazio p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+@@media (max-width: 640px) {
+    .doc-card {
+        flex-wrap: wrap;
+    }
+
+    .doc-card__acao {
+        width: 100%;
+    }
+
+    .doc-card__acao .btn {
+        width: 100%;
+    }
+}

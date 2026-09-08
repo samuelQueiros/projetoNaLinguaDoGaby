@@ -1,0 +1,364 @@
+@page "/central-de-documentos/{Id:guid}"
+@attribute [Authorize(Roles = "Administrador")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using System.Security.Claims
+@using ErpFinanceiro.Application.Categorias
+@using ErpFinanceiro.Application.ContasAPagar
+@using ErpFinanceiro.Application.DocumentosIa
+@using ErpFinanceiro.Application.Fornecedores
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject IGerenciadorDocumentosImportados Gerenciador
+@inject IGerenciadorFornecedores GerenciadorFornecedores
+@inject IGerenciadorCadastroSimples<Categoria> GerenciadorCategorias
+@inject IGerenciadorCadastroSimples<CentroCusto> GerenciadorCentrosCusto
+@inject IGerenciadorCadastroSimples<FormaPagamento> GerenciadorFormasPagamento
+@inject UserManager<Usuario> UserManager
+@inject NavigationManager NavigationManager
+
+<PageTitle>Revisar documento</PageTitle>
+
+@if (!carregado)
+{
+    <p><em>Carregando…</em></p>
+}
+else if (documento is null)
+{
+    <div class="alert alert-warning">Documento não encontrado.</div>
+    <a class="btn btn-outline-primary" href="/central-de-documentos">← Voltar</a>
+}
+else if (documento.Status != StatusImportacaoDocumento.AguardandoRevisao)
+{
+    <div class="alert alert-warning">
+        Este documento está <strong>@documento.Status</strong> e não precisa mais de revisão.
+    </div>
+    <a class="btn btn-outline-primary" href="/central-de-documentos">← Voltar</a>
+}
+else
+{
+    <a class="voltar" href="/central-de-documentos">← Central de Documentos</a>
+    <h1>Revisar documento</h1>
+    <p class="subtitulo">Confira os dados olhando o documento ao lado e clique em <strong>confirmar</strong>.</p>
+
+    <div class="revisao">
+        <div class="revisao__doc">
+            @if (EhImagem)
+            {
+                <img src="/documentos-importados/@documento.Id/arquivo" alt="@documento.NomeArquivo" />
+            }
+            else
+            {
+                <iframe src="/documentos-importados/@documento.Id/arquivo" title="@documento.NomeArquivo"></iframe>
+            }
+            <a class="revisao__abrir" href="/documentos-importados/@documento.Id/arquivo" target="_blank">Abrir em nova aba ↗</a>
+        </div>
+
+        <div class="revisao__form">
+            <EditForm Model="modelo" OnValidSubmit="AprovarAsync">
+                <DataAnnotationsValidator />
+
+                <label class="campo">
+                    <span class="campo__label">Fornecedor</span>
+                    <InputSelect class="form-select form-select-lg" @bind-Value="modelo.FornecedorId">
+                        <option value="@Guid.Empty">Selecione…</option>
+                        @foreach (var f in fornecedores)
+                        {
+                            <option value="@f.Id">@f.RazaoSocial</option>
+                        }
+                    </InputSelect>
+                    @if (Dica("fornecedor") is { } dicaForn)
+                    {
+                        <span class="campo__dica">📄 no documento: <strong>@dicaForn</strong></span>
+                    }
+                </label>
+
+                <div class="campo-linha">
+                    <label class="campo">
+                        <span class="campo__label">Valor</span>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text">R$</span>
+                            <InputNumber class="form-control" @bind-Value="modelo.ValorOriginal" />
+                        </div>
+                        @if (Dica("valor") is { } dicaVal)
+                        {
+                            <span class="campo__dica">📄 no documento: <strong>@dicaVal</strong></span>
+                        }
+                    </label>
+
+                    <label class="campo">
+                        <span class="campo__label">Vencimento</span>
+                        <InputDate class="form-control form-control-lg" @bind-Value="modelo.Vencimento" />
+                        @if ((Dica("vencimento") ?? Dica("data")) is { } dicaVenc)
+                        {
+                            <span class="campo__dica">📄 no documento: <strong>@dicaVenc</strong></span>
+                        }
+                    </label>
+                </div>
+
+                <label class="campo">
+                    <span class="campo__label">Descrição</span>
+                    <InputText class="form-control" @bind-Value="modelo.Descricao" placeholder="Ex.: Conta de luz — agosto" />
+                </label>
+
+                <button type="button" class="mais-toggle" @onclick="() => maisAberto = !maisAberto">
+                    @(maisAberto ? "− Menos opções" : "+ Mais opções (categoria, forma de pagamento, juros…)")
+                </button>
+
+                @if (maisAberto)
+                {
+                    <div class="mais">
+                        <div class="campo-linha">
+                            <label class="campo">
+                                <span class="campo__label">Categoria</span>
+                                <InputSelect class="form-select" @bind-Value="modelo.CategoriaId">
+                                    <option value="">—</option>
+                                    @foreach (var c in categorias)
+                                    {
+                                        <option value="@c.Id">@c.Nome</option>
+                                    }
+                                </InputSelect>
+                            </label>
+                            <label class="campo">
+                                <span class="campo__label">Centro de custo</span>
+                                <InputSelect class="form-select" @bind-Value="modelo.CentroCustoId">
+                                    <option value="">—</option>
+                                    @foreach (var c in centrosCusto)
+                                    {
+                                        <option value="@c.Id">@c.Nome</option>
+                                    }
+                                </InputSelect>
+                            </label>
+                        </div>
+                        <div class="campo-linha">
+                            <label class="campo">
+                                <span class="campo__label">Forma de pagamento</span>
+                                <InputSelect class="form-select" @bind-Value="modelo.FormaPagamentoId">
+                                    <option value="">—</option>
+                                    @foreach (var f in formasPagamento)
+                                    {
+                                        <option value="@f.Id">@f.Nome</option>
+                                    }
+                                </InputSelect>
+                            </label>
+                        </div>
+                        <div class="campo-linha">
+                            <label class="campo">
+                                <span class="campo__label">Desconto</span>
+                                <InputNumber class="form-control" @bind-Value="modelo.Desconto" />
+                            </label>
+                            <label class="campo">
+                                <span class="campo__label">Juros</span>
+                                <InputNumber class="form-control" @bind-Value="modelo.Juros" />
+                            </label>
+                            <label class="campo">
+                                <span class="campo__label">Multa</span>
+                                <InputNumber class="form-control" @bind-Value="modelo.Multa" />
+                            </label>
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(erro))
+                {
+                    <div class="alert alert-danger">@erro</div>
+                }
+
+                <div class="acoes">
+                    <button type="submit" class="btn btn-confirmar" disabled="@ocupado">
+                        ✓ Confirmar e lançar conta
+                    </button>
+                    <button type="button" class="btn btn-link text-danger" @onclick="() => rejeicaoAberta = true" disabled="@ocupado">
+                        Descartar documento
+                    </button>
+                </div>
+            </EditForm>
+
+            @if (rejeicaoAberta)
+            {
+                <div class="rejeicao">
+                    <label class="campo__label">Por que está descartando?</label>
+                    <textarea class="form-control mb-2" @bind="motivoRejeicao" placeholder="Ex.: documento duplicado, não é uma despesa…"></textarea>
+                    <button class="btn btn-danger btn-sm" @onclick="RejeitarAsync" disabled="@ocupado">Confirmar descarte</button>
+                    <button class="btn btn-link btn-sm" @onclick="() => rejeicaoAberta = false">Cancelar</button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private DocumentoImportado? documento;
+    private bool carregado;
+    private readonly Modelo modelo = new();
+    private List<Fornecedor> fornecedores = new();
+    private List<Categoria> categorias = new();
+    private List<CentroCusto> centrosCusto = new();
+    private List<FormaPagamento> formasPagamento = new();
+
+    private Guid usuarioId;
+    private bool ocupado;
+    private bool maisAberto;
+    private bool rejeicaoAberta;
+    private string? motivoRejeicao;
+    private string? erro;
+
+    private bool EhImagem => documento?.TipoConteudo.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await (AuthState ?? Task.FromResult(new AuthenticationState(new ClaimsPrincipal())));
+        var usuario = await UserManager.GetUserAsync(state.User);
+        usuarioId = usuario?.Id ?? Guid.Empty;
+
+        fornecedores = (await GerenciadorFornecedores.ListarAsync()).ToList();
+        categorias = (await GerenciadorCategorias.ListarAsync(apenasAtivos: true)).ToList();
+        centrosCusto = (await GerenciadorCentrosCusto.ListarAsync(apenasAtivos: true)).ToList();
+        formasPagamento = (await GerenciadorFormasPagamento.ListarAsync(apenasAtivos: true)).ToList();
+
+        documento = await Gerenciador.ObterAsync(Id);
+        if (documento is not null)
+        {
+            PreencherDoQueDeuParaLer();
+        }
+        carregado = true;
+    }
+
+    private string? Dica(string nome) =>
+        documento?.Campos.FirstOrDefault(c => string.Equals(c.Nome, nome, StringComparison.OrdinalIgnoreCase))?.Valor;
+
+    private void PreencherDoQueDeuParaLer()
+    {
+        modelo.Vencimento = DateOnly.FromDateTime(DateTime.Today);
+        modelo.Descricao = string.Empty;
+
+        foreach (var campo in documento!.Campos)
+        {
+            switch (campo.Nome.ToLowerInvariant())
+            {
+                case "valor" when TryDecimal(campo.Valor, out var valor):
+                    modelo.ValorOriginal = valor;
+                    break;
+                case "vencimento" or "data" when DateOnly.TryParse(campo.Valor, CultureInfo.GetCultureInfo("pt-BR"), out var d):
+                    modelo.Vencimento = d;
+                    break;
+                case "fornecedor":
+                    var achado = fornecedores.FirstOrDefault(f =>
+                        string.Equals(f.RazaoSocial, campo.Valor, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(f.NomeFantasia, campo.Valor, StringComparison.OrdinalIgnoreCase));
+                    if (achado is not null)
+                    {
+                        modelo.FornecedorId = achado.Id;
+                    }
+                    break;
+                case "cnpj" when !string.IsNullOrWhiteSpace(campo.Valor):
+                    var digitos = new string(campo.Valor.Where(char.IsDigit).ToArray());
+                    var porCnpj = fornecedores.FirstOrDefault(f => f.CnpjCpf == digitos);
+                    if (porCnpj is not null)
+                    {
+                        modelo.FornecedorId = porCnpj.Id;
+                    }
+                    break;
+                case "formapagamento":
+                    var fp = formasPagamento.FirstOrDefault(x =>
+                        string.Equals(x.Nome, campo.Valor, StringComparison.OrdinalIgnoreCase));
+                    if (fp is not null)
+                    {
+                        modelo.FormaPagamentoId = fp.Id;
+                    }
+                    break;
+            }
+        }
+    }
+
+    private static bool TryDecimal(string? texto, out decimal valor)
+    {
+        valor = 0m;
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return false;
+        }
+
+        var limpo = texto.Replace("R$", "").Replace(" ", "").Trim();
+        return decimal.TryParse(limpo, NumberStyles.Currency, CultureInfo.InvariantCulture, out valor)
+            || decimal.TryParse(limpo, NumberStyles.Currency, CultureInfo.GetCultureInfo("pt-BR"), out valor);
+    }
+
+    private async Task AprovarAsync()
+    {
+        erro = null;
+        if (modelo.FornecedorId == Guid.Empty)
+        {
+            erro = "Escolha o fornecedor.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(modelo.Descricao))
+        {
+            modelo.Descricao = documento?.NomeArquivo ?? "Despesa importada";
+        }
+
+        ocupado = true;
+        try
+        {
+            var input = new RevisaoDocumentoInput(
+                modelo.FornecedorId, modelo.Descricao, modelo.CategoriaId, modelo.CentroCustoId,
+                modelo.Vencimento, modelo.ValorOriginal, modelo.Desconto, modelo.Juros, modelo.Multa, modelo.FormaPagamentoId);
+
+            var resultado = await Gerenciador.AprovarAsync(Id, input, usuarioId);
+            if (!resultado.Operacao.Sucesso || resultado.Conta is null)
+            {
+                erro = string.Join("; ", resultado.Operacao.Erros);
+                return;
+            }
+
+            NavigationManager.NavigateTo($"/contas-a-pagar/{resultado.Conta.Id}");
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private async Task RejeitarAsync()
+    {
+        erro = null;
+        ocupado = true;
+        try
+        {
+            var resultado = await Gerenciador.RejeitarAsync(Id, motivoRejeicao ?? string.Empty, usuarioId);
+            if (!resultado.Sucesso)
+            {
+                erro = string.Join("; ", resultado.Erros);
+                return;
+            }
+
+            NavigationManager.NavigateTo("/central-de-documentos");
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private sealed class Modelo
+    {
+        public Guid FornecedorId { get; set; }
+        public string Descricao { get; set; } = string.Empty;
+        public Guid? CategoriaId { get; set; }
+        public Guid? CentroCustoId { get; set; }
+        public DateOnly Vencimento { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public decimal ValorOriginal { get; set; }
+        public decimal Desconto { get; set; }
+        public decimal Juros { get; set; }
+        public decimal Multa { get; set; }
+        public Guid? FormaPagamentoId { get; set; }
+    }
+}

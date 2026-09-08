@@ -6,6 +6,7 @@ using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
 using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Application.Dashboard;
+using ErpFinanceiro.Application.DocumentosIa;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Application.NotasFiscais;
 using ErpFinanceiro.Application.Relatorios;
@@ -20,6 +21,7 @@ using ErpFinanceiro.Infrastructure.Categorias;
 using ErpFinanceiro.Infrastructure.ContasAPagar;
 using ErpFinanceiro.Infrastructure.Dashboard;
 using ErpFinanceiro.Infrastructure.Data;
+using ErpFinanceiro.Infrastructure.DocumentosIa;
 using ErpFinanceiro.Infrastructure.Fornecedores;
 using ErpFinanceiro.Infrastructure.NotasFiscais;
 using ErpFinanceiro.Infrastructure.Relatorios;
@@ -139,6 +141,26 @@ builder.Services.AddScoped<IGerenciadorNotasFiscais, GerenciadorNotasFiscais>();
 builder.Services.AddScoped<IGerenciadorBoletos, GerenciadorBoletos>();
 builder.Services.AddScoped<IExportadorContasPagar, ExportadorContasPagar>();
 
+// Módulo de IA para documentos (docs/modulo-ia-documentos.md). Fila
+// in-process + worker; leitor trocável por configuração (Stub | Http).
+builder.Services.AddSingleton<IFilaProcessamentoDocumentos, FilaProcessamentoDocumentos>();
+builder.Services.AddScoped<IGerenciadorDocumentosImportados, GerenciadorDocumentosImportados>();
+builder.Services.AddHostedService<ErpFinanceiro.Web.Servicos.ProcessadorDocumentosHostedService>();
+
+if (string.Equals(builder.Configuration["Ia:Leitor:Modo"], "Http", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<ILeitorDocumentos, LeitorDocumentosHttp>(client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration["Ia:Leitor:BaseUrl"] ?? "http://localhost:8000");
+        client.Timeout = TimeSpan.FromSeconds(
+            int.TryParse(builder.Configuration["Ia:Leitor:TimeoutSegundos"], out var segundos) ? segundos : 120);
+    });
+}
+else
+{
+    builder.Services.AddSingleton<ILeitorDocumentos, LeitorDocumentosStub>();
+}
+
 // Licença Community do QuestPDF (uso gratuito para empresas pequenas/OSS —
 // exigido pela biblioteca desde a v2023, sem isso ela lança exceção em
 // tempo de execução ao gerar o primeiro PDF).
@@ -175,6 +197,22 @@ app.MapGet("/anexos/{id:guid}", async (Guid id, IGerenciadorAnexos gerenciador) 
         ? Results.NotFound()
         : Results.File(anexo.Conteudo, anexo.TipoConteudo, anexo.NomeArquivo);
 }).RequireAuthorization();
+
+// Visualização do arquivo original de um documento importado (Central de
+// Documentos). Mesmo motivo dos anexos: download binário não sai de um
+// componente Blazor Server.
+app.MapGet("/documentos-importados/{id:guid}/arquivo",
+    async (Guid id, IGerenciadorDocumentosImportados gerenciador, IArmazenamentoAnexos storage) =>
+    {
+        var documento = await gerenciador.ObterAsync(id);
+        if (documento is null)
+        {
+            return Results.NotFound();
+        }
+
+        var conteudo = await storage.AbrirAsync(documento.CaminhoArmazenamento);
+        return Results.File(conteudo, documento.TipoConteudo, documento.NomeArquivo);
+    }).RequireAuthorization();
 
 // Exportação do relatório de contas a pagar (seção 10 do escopo) — mesmo
 // motivo dos anexos: download de arquivo binário não sai de um componente

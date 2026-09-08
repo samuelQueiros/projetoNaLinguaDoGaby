@@ -1,8 +1,10 @@
+using System.Text.Json;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.Seguranca;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace ErpFinanceiro.Infrastructure.Data;
 
@@ -49,6 +51,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
     public DbSet<NotaFiscal> NotasFiscais => Set<NotaFiscal>();
 
     public DbSet<Boleto> Boletos => Set<Boleto>();
+
+    public DbSet<DocumentoImportado> DocumentosImportados => Set<DocumentoImportado>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -490,6 +494,60 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.HasIndex(x => x.Status);
 
             b.ToTable(t => t.HasCheckConstraint("CK_Boletos_Valor", "\"Valor\" >= 0"));
+        });
+
+        builder.Entity<DocumentoImportado>(b =>
+        {
+            b.ToTable("DocumentosImportados");
+            b.Property(d => d.NomeArquivo).IsRequired().HasMaxLength(300);
+            b.Property(d => d.CaminhoArmazenamento).IsRequired().HasMaxLength(400);
+            b.Property(d => d.TipoConteudo).IsRequired().HasMaxLength(150);
+            b.Property(d => d.Status).HasConversion<string>().HasMaxLength(30);
+            b.Property(d => d.TipoDetectado).HasConversion<string>().HasMaxLength(30);
+            b.Property(d => d.ConfiancaGeral).HasColumnType("numeric(5,4)");
+            b.Property(d => d.MensagemErro).HasMaxLength(2000);
+            b.Property(d => d.MotivoRejeicao).HasMaxLength(1000);
+            b.Property(d => d.CriadoEm).HasDefaultValueSql("now()");
+
+            // Campos extraídos como jsonb: são só para exibir na revisão, não
+            // há consulta por campo — mesmo raciocínio do ValorAnterior/Novo
+            // de LogAuditoria. ValueComparer via serialização porque é uma
+            // coleção mutável de referência (exigido pelo EF Core).
+            var jsonOpts = (JsonSerializerOptions?)null;
+            b.Property(d => d.Campos)
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    v => JsonSerializer.Serialize(v, jsonOpts),
+                    v => JsonSerializer.Deserialize<List<CampoExtraido>>(v, jsonOpts) ?? new List<CampoExtraido>())
+                .Metadata.SetValueComparer(new ValueComparer<List<CampoExtraido>>(
+                    (a, c) => JsonSerializer.Serialize(a, jsonOpts) == JsonSerializer.Serialize(c, jsonOpts),
+                    v => v == null ? 0 : JsonSerializer.Serialize(v, jsonOpts).GetHashCode(),
+                    v => JsonSerializer.Deserialize<List<CampoExtraido>>(JsonSerializer.Serialize(v, jsonOpts), jsonOpts) ?? new List<CampoExtraido>()));
+
+            b.HasOne(d => d.ContaPagar)
+                .WithMany()
+                .HasForeignKey(d => d.ContaPagarId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            b.HasOne(d => d.EnviadoPor)
+                .WithMany()
+                .HasForeignKey(d => d.EnviadoPorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(d => d.RevisadoPor)
+                .WithMany()
+                .HasForeignKey(d => d.RevisadoPorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Consulta típica: a fila de revisão (WHERE Status = 'AguardandoRevisao'
+            // ORDER BY CriadoEm) e o histórico por quem enviou.
+            b.HasIndex(d => d.Status);
+            b.HasIndex(d => d.EnviadoPorId);
+            b.HasIndex(d => d.ContaPagarId);
+
+            b.ToTable(t => t.HasCheckConstraint("CK_DocumentosImportados_TamanhoBytes", "\"TamanhoBytes\" >= 0"));
+            b.ToTable(t => t.HasCheckConstraint("CK_DocumentosImportados_ConfiancaGeral",
+                "\"ConfiancaGeral\" >= 0 AND \"ConfiancaGeral\" <= 1"));
         });
     }
 

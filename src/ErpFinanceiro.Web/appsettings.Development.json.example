@@ -16,6 +16,11 @@
   "Criptografia": {
     "ChaveAes256Base64": "sAHHeGp0Z0T+Yg/tDf7vJtfzJO5+CeyX7QJ9JzmN0+M="
   },
+  "Ia": {
+    "Leitor": {
+      "Modo": "Stub"
+    }
+  },
   "Logging": {
     "LogLevel": {
       "Default": "Information",
