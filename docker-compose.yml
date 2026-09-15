@@ -30,6 +30,27 @@ services:
       timeout: 5s
       retries: 5
 
+  web:
+    build:
+      context: .
+      dockerfile: src/ErpFinanceiro.Web/Dockerfile
+    container_name: erp-financeiro-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      servico-documentos:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-erp_financeiro};Username=${POSTGRES_USER:-erp};Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no arquivo .env (veja .env.example)}"
+      Criptografia__ChaveAes256Base64: ${CRIPTOGRAFIA_CHAVE_AES256_BASE64:?defina CRIPTOGRAFIA_CHAVE_AES256_BASE64 no arquivo .env (veja .env.example)}
+      Ia__Leitor__Modo: ${IA_LEITOR_MODO:-Stub}
+      Ia__Leitor__BaseUrl: http://servico-documentos:8000
+      Ia__Leitor__TimeoutSegundos: "120"
+      Ia__Leitor__TokenInterno: ${IA_LEITOR_TOKEN_INTERNO:-}
+    ports:
+      - "127.0.0.1:8080:8080"
+
 volumes:
   erp_postgres_data:
     name: erp_financeiro_postgres_data

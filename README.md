@@ -61,3 +61,11 @@ dotnet run --project src/ErpFinanceiro.Web
 ```bash
 dotnet test tests/ErpFinanceiro.Tests/ErpFinanceiro.Tests.csproj
 ```
+
+## Deploy no Portainer
+
+Veja o [guia de deploy](deploy/PORTAINER.md). A stack de produção está em
+[`deploy/portainer-stack.yml`](deploy/portainer-stack.yml), com aplicação web,
+PostgreSQL, serviço de documentos e volumes persistentes, com acesso local
+em `http://localhost:8080`. A opção com HTTPS fica em `deploy/HTTPS.md`.
+O guia inclui construção das imagens, variáveis, primeiro acesso e backup.

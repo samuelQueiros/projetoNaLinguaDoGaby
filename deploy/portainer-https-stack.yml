@@ -1,0 +1,115 @@
+# Docker Standalone: cole no Web editor do Portainer após construir as imagens.
+# Consulte deploy/HTTPS.md e importe as variáveis de portainer-https.env.example.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    command: ["caddy", "reverse-proxy", "--from", "${ERP_DOMAIN:?defina ERP_DOMAIN}", "--to", "web:8080"]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      frontend:
+        ipv4_address: ${PROXY_IP:-172.30.80.2}
+    depends_on:
+      web:
+        condition: service_healthy
+    logging: *logging
+
+  web:
+    image: ${ERP_WEB_IMAGE:-erp-financeiro-web:1.0.0}
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ASPNETCORE_HTTPS_PORT: "443"
+      AllowedHosts: "${ERP_DOMAIN:?defina ERP_DOMAIN};localhost"
+      ConnectionStrings__DefaultConnection: 'Host=postgres;Port=5432;Database=erp_financeiro;Username=erp;Password="${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}"'
+      Criptografia__ChaveAes256Base64: ${AES_KEY_BASE64:?defina AES_KEY_BASE64}
+      SeedAdministrador__Email: ${ADMIN_EMAIL:?defina ADMIN_EMAIL}
+      SeedAdministrador__SenhaInicial: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD}
+      Banco__AplicarMigracoes: "true"
+      Anexos__RaizFisica: /app/storage
+      DataProtection__DiretorioChaves: /app/keys
+      Proxy__EnderecosConfiaveis: ${PROXY_IP:-172.30.80.2}
+      Ia__Leitor__Modo: Http
+      Ia__Leitor__BaseUrl: http://servico-documentos:8000
+      Ia__Leitor__TokenInterno: ${INTERNAL_TOKEN:?defina INTERNAL_TOKEN}
+      Ia__Leitor__TimeoutSegundos: "240"
+    volumes:
+      - anexos:/app/storage
+      - chaves:/app/keys
+    networks:
+      frontend:
+        ipv4_address: ${WEB_IP:-172.30.80.3}
+      backend:
+    depends_on:
+      postgres:
+        condition: service_healthy
+      servico-documentos:
+        condition: service_healthy
+    logging: *logging
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_DB: erp_financeiro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp -d erp_financeiro"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *logging
+
+  servico-documentos:
+    image: ${ERP_DOCUMENTOS_IMAGE:-erp-financeiro-documentos:1.0.0}
+    restart: unless-stopped
+    environment:
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?defina INTERNAL_TOKEN}
+      LLM_PROVIDER: none
+      OCR_HABILITADO: "true"
+      OCR_IDIOMA: por+eng
+      MAX_ARQUIVO_MB: "25"
+      LOG_LEVEL: INFO
+      LOG_TEXTO_BRUTO: "false"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    logging: *logging
+
+networks:
+  frontend:
+    ipam:
+      config:
+        - subnet: ${PROXY_SUBNET:-172.30.80.0/24}
+  # Sem portas publicadas; permite saída para os provedores de IA.
+  backend:
+
+volumes:
+  postgres_data:
+  anexos:
+  chaves:
+  caddy_data:
+  caddy_config:

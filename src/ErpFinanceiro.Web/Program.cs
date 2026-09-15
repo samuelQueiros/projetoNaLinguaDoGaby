@@ -36,6 +36,9 @@ using ErpFinanceiro.Web.Components;
 using ErpFinanceiro.Web.Components.Account;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 
@@ -49,6 +52,30 @@ CultureInfo.DefaultThreadCurrentCulture = culturaPtBr;
 CultureInfo.DefaultThreadCurrentUICulture = culturaPtBr;
 
 var builder = WebApplication.CreateBuilder(args);
+// Opt-in para instalação local sem TLS; mantém o ambiente Production.
+var permitirHttpLocal = builder.Configuration.GetValue<bool>("Seguranca:PermitirHttpLocal");
+
+// Persistência das chaves de cookies entre recriações do container.
+var diretorioChaves = builder.Configuration["DataProtection:DiretorioChaves"];
+if (!string.IsNullOrWhiteSpace(diretorioChaves))
+{
+    builder.Services.AddDataProtection()
+        .SetApplicationName("ErpFinanceiro")
+        .PersistKeysToFileSystem(new DirectoryInfo(diretorioChaves));
+}
+
+// Confia somente nos endereços de proxy configurados pelo operador.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    foreach (var endereco in (builder.Configuration["Proxy:EnderecosConfiaveis"] ?? "")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        options.KnownProxies.Add(IPAddress.Parse(endereco));
+    }
+});
+builder.Services.AddHealthChecks()
+    .AddCheck<ErpFinanceiro.Web.Servicos.BancoHealthCheck>("banco");
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -97,15 +124,13 @@ builder.Services.AddIdentityCore<Usuario>(options =>
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
-// Cookie de autenticação: HTTPS obrigatório, SameSite estrito e expiração
+// Cookie de autenticação: HTTPS por padrão, SameSite estrito e expiração
 // alinhada a uma jornada de trabalho (em vez dos 14 dias default) — reduz
 // a janela de uma sessão esquecida em máquina compartilhada.
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    // Always em produção; em dev local (sem HTTPS configurado no container)
-    // isso derrubaria o cookie silenciosamente — SameAsRequest é o próprio
-    // default do Identity.
-    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+    // HTTP local exige cookie compatível com o protocolo da requisição.
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() || permitirHttpLocal
         ? CookieSecurePolicy.SameAsRequest
         : CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Strict;
@@ -194,15 +219,25 @@ QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+// O probe interno precisa responder por HTTP, sem redirecionar para HTTPS.
+app.UseHealthChecks("/health");
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+    if (!permitirHttpLocal)
+    {
+        app.UseHsts();
+    }
 }
 
-app.UseHttpsRedirection();
+if (!permitirHttpLocal)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseStaticFiles();
 app.UseAntiforgery();
@@ -291,6 +326,12 @@ app.MapGet("/relatorios/contas-a-pagar.pdf", async (IGerenciadorContasPagar gere
 
 using (var scope = app.Services.CreateScope())
 {
+    // Habilitado na stack de uma única instância, antes do seed e do worker.
+    if (app.Configuration.GetValue<bool>("Banco:AplicarMigracoes"))
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
+    }
     await SeedInicial.AplicarAsync(scope.ServiceProvider, app.Configuration, app.Logger);
 }
 

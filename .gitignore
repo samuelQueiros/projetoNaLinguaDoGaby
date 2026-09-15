@@ -30,3 +30,6 @@ storage/*
 /CLAUDE.md
 /docs/
 /agents/
+
+# Segredos de deploy
+/deploy/*.env
