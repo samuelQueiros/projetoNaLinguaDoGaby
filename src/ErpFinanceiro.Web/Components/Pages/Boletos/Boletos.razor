@@ -53,6 +53,7 @@
 else
 {
     <p class="text-muted">@boletos.Count boleto(s) — total R$ @boletos.Sum(b => b.Valor).ToString("N2")</p>
+    <div class="tabela-cartao">
     <table class="table table-striped align-middle">
         <thead>
             <tr><th>Número</th><th>Fornecedor</th><th>Vencimento</th><th class="text-end">Valor</th><th>Status</th><th></th></tr>
@@ -78,6 +79,7 @@ else
             }
         </tbody>
     </table>
+    </div>
 }
 
 @if (formularioAberto)

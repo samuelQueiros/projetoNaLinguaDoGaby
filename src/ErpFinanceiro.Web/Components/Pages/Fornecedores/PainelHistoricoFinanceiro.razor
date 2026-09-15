@@ -1,0 +1,148 @@
+@* Resumo de contas a pagar, notas fiscais e boletos de um fornecedor —
+   extraído de FornecedorDetalhe.razor, mesmo motivo de PainelDadosBancarios. *@
+@using ErpFinanceiro.Application.Boletos
+@using ErpFinanceiro.Application.ContasAPagar
+@using ErpFinanceiro.Application.NotasFiscais
+@using ErpFinanceiro.Domain
+
+<h3 class="mt-4">Histórico financeiro</h3>
+@if (contasFornecedor is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-sm-4 col-lg-2">
+            <div class="card h-100"><div class="card-body">
+                <h6 class="card-subtitle text-muted">Pagas</h6>
+                <p class="mb-0">@contasPagas.Count — @contasPagas.Sum(c => c.ValorFinal).ToString("C")</p>
+            </div></div>
+        </div>
+        <div class="col-sm-4 col-lg-2">
+            <div class="card h-100"><div class="card-body">
+                <h6 class="card-subtitle text-muted">Em aberto</h6>
+                <p class="mb-0">@contasEmAberto.Count — @contasEmAberto.Sum(c => c.ValorFinal).ToString("C")</p>
+            </div></div>
+        </div>
+        <div class="col-sm-4 col-lg-2">
+            <div class="card h-100 border-danger"><div class="card-body">
+                <h6 class="card-subtitle text-muted">Vencidas</h6>
+                <p class="mb-0 text-danger">@contasVencidas.Count — @contasVencidas.Sum(c => c.ValorFinal).ToString("C")</p>
+            </div></div>
+        </div>
+        <div class="col-sm-4 col-lg-2">
+            <div class="card h-100"><div class="card-body">
+                <h6 class="card-subtitle text-muted">Futuras</h6>
+                <p class="mb-0">@contasFuturas.Count — @contasFuturas.Sum(c => c.ValorFinal).ToString("C")</p>
+            </div></div>
+        </div>
+        <div class="col-sm-4 col-lg-2">
+            <div class="card h-100"><div class="card-body">
+                <h6 class="card-subtitle text-muted">Notas fiscais</h6>
+                <p class="mb-0">@notasFornecedor!.Count</p>
+            </div></div>
+        </div>
+        <div class="col-sm-4 col-lg-2">
+            <div class="card h-100"><div class="card-body">
+                <h6 class="card-subtitle text-muted">Boletos</h6>
+                <p class="mb-0">@boletosFornecedor!.Count</p>
+            </div></div>
+        </div>
+    </div>
+
+    <h5>Contas a pagar</h5>
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Descrição</th><th>Vencimento</th><th class="text-end">Valor</th><th>Status</th></tr></thead>
+        <tbody>
+            @foreach (var c in contasFornecedor)
+            {
+                <tr>
+                    <td>@c.Descricao</td>
+                    <td>@c.Vencimento.ToString("dd/MM/yyyy")</td>
+                    <td class="text-end">@c.ValorFinal.ToString("C")</td>
+                    <td><span class="pill @c.StatusFinanceiro.Pill()">@c.StatusFinanceiro.Rotulo()</span></td>
+                </tr>
+            }
+            @if (contasFornecedor.Count == 0)
+            {
+                <tr><td colspan="4" class="text-center text-muted">Nenhuma conta a pagar.</td></tr>
+            }
+        </tbody>
+    </table>
+
+    <h5>Notas fiscais</h5>
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Número</th><th>Emissão</th><th class="text-end">Valor</th></tr></thead>
+        <tbody>
+            @foreach (var n in notasFornecedor)
+            {
+                <tr><td>@n.Numero</td><td>@n.Emissao.ToString("dd/MM/yyyy")</td><td class="text-end">@n.Valor.ToString("C")</td></tr>
+            }
+            @if (notasFornecedor.Count == 0)
+            {
+                <tr><td colspan="3" class="text-center text-muted">Nenhuma nota fiscal.</td></tr>
+            }
+        </tbody>
+    </table>
+
+    <h5>Boletos</h5>
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Número</th><th>Vencimento</th><th class="text-end">Valor</th><th>Status</th></tr></thead>
+        <tbody>
+            @foreach (var b in boletosFornecedor)
+            {
+                <tr><td>@b.Numero</td><td>@b.Vencimento.ToString("dd/MM/yyyy")</td><td class="text-end">@b.Valor.ToString("C")</td><td>@b.Status</td></tr>
+            }
+            @if (boletosFornecedor.Count == 0)
+            {
+                <tr><td colspan="4" class="text-center text-muted">Nenhum boleto.</td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    // Recebe as listas já carregadas pelo pai (FornecedorDetalhe), em vez de
+    // buscar sozinho no OnInitializedAsync: se este painel e PainelDadosBancarios
+    // (montados juntos, na primeira renderização) cada um disparasse suas
+    // próprias consultas assíncronas, o Blazor não garante execução sequencial
+    // entre OnInitializedAsync de componentes-irmãos — os dois competiam pela
+    // mesma instância de AppDbContext e derrubavam com "A second operation was
+    // started on this context instance..." (mesma classe de bug de
+    // ContaPagarDetalhe.razor, descoberta testando de verdade esta tela).
+    [Parameter, EditorRequired]
+    public List<ContaPagar>? ContasFornecedor { get; set; }
+
+    [Parameter, EditorRequired]
+    public List<NotaFiscal>? NotasFornecedor { get; set; }
+
+    [Parameter, EditorRequired]
+    public List<Boleto>? BoletosFornecedor { get; set; }
+
+    private List<ContaPagar>? contasFornecedor;
+    private List<NotaFiscal>? notasFornecedor;
+    private List<Boleto>? boletosFornecedor;
+    private List<ContaPagar> contasPagas = new();
+    private List<ContaPagar> contasEmAberto = new();
+    private List<ContaPagar> contasVencidas = new();
+    private List<ContaPagar> contasFuturas = new();
+
+    protected override void OnParametersSet()
+    {
+        contasFornecedor = ContasFornecedor;
+        notasFornecedor = NotasFornecedor;
+        boletosFornecedor = BoletosFornecedor;
+
+        if (contasFornecedor is null)
+        {
+            return;
+        }
+
+        var hoje = DateOnly.FromDateTime(DateTime.Today);
+        contasPagas = contasFornecedor.Where(c => c.StatusFinanceiro == StatusFinanceiro.Paga).ToList();
+        contasEmAberto = contasFornecedor.Where(c => c.StatusFinanceiro != StatusFinanceiro.Paga && c.StatusFinanceiro != StatusFinanceiro.Cancelada && c.Vencimento >= hoje).ToList();
+        contasVencidas = contasFornecedor.Where(c => c.StatusFinanceiro != StatusFinanceiro.Paga && c.StatusFinanceiro != StatusFinanceiro.Cancelada && c.Vencimento < hoje).ToList();
+        contasFuturas = contasEmAberto.Where(c => c.Vencimento > hoje).ToList();
+    }
+}

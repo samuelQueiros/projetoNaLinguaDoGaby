@@ -34,27 +34,6 @@ public class GerenciadorDocumentosImportadosTests
             => Task.FromResult(resultado);
     }
 
-    private static UserManager<Usuario> CriarUserManager(AppDbContext db)
-    {
-        var store = new UserStore<Usuario, IdentityRole<Guid>, AppDbContext, Guid>(db);
-        return new UserManager<Usuario>(store, null!, new PasswordHasher<Usuario>(), [], [], null!, null!, null!,
-            new NullLogger<UserManager<Usuario>>());
-    }
-
-    private static async Task<Usuario> CriarUsuarioComPapelAsync(AppDbContext db, UserManager<Usuario> userManager, string papel)
-    {
-        if (!db.Roles.Any(r => r.Name == papel))
-        {
-            db.Roles.Add(new IdentityRole<Guid> { Id = Guid.NewGuid(), Name = papel, NormalizedName = papel });
-            await db.SaveChangesAsync();
-        }
-
-        var usuario = new Usuario { Id = Guid.NewGuid(), UserName = $"{papel}@teste.local", Email = $"{papel}@teste.local", Nome = papel };
-        await userManager.CreateAsync(usuario);
-        await userManager.AddToRoleAsync(usuario, papel);
-        return usuario;
-    }
-
     private sealed record Cenario(
         AppDbContext Db,
         GerenciadorDocumentosImportados Gerenciador,
@@ -67,13 +46,13 @@ public class GerenciadorDocumentosImportadosTests
     private static async Task<Cenario> PrepararAsync(ResultadoLeituraDocumento? resultadoLeitura = null)
     {
         var db = AppDbContextFactory.CriarEmMemoria();
-        var userManager = CriarUserManager(db);
+        var userManager = IdentityTestHelpers.CriarUserManager(db);
         var storage = new ArmazenamentoAnexosFalso();
         var fila = new FilaFalsa();
         var auditoria = new RegistradorAuditoriaFalso();
 
-        var admin = await CriarUsuarioComPapelAsync(db, userManager, nameof(PerfilUsuario.Administrador));
-        var financeiro = await CriarUsuarioComPapelAsync(db, userManager, nameof(PerfilUsuario.Financeiro));
+        var admin = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, nameof(PerfilUsuario.Administrador), "Administrador Teste");
+        var financeiro = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, nameof(PerfilUsuario.Financeiro), "Financeiro Teste");
 
         var fornecedor = new Fornecedor { Id = Guid.NewGuid(), RazaoSocial = "Fornecedor Teste", CnpjCpf = "12345678000199" };
         db.Fornecedores.Add(fornecedor);
@@ -82,8 +61,8 @@ public class GerenciadorDocumentosImportadosTests
         var leitor = new LeitorFalso(resultadoLeitura
             ?? new ResultadoLeituraDocumento(TipoDocumentoDetectado.NaoIdentificado, 0m, Array.Empty<CampoLido>()));
 
-        var contasPagar = new GerenciadorContasPagar(db, auditoria);
-        var anexos = new GerenciadorAnexos(db, storage, auditoria);
+        var contasPagar = new GerenciadorContasPagar(db, auditoria, userManager);
+        var anexos = new GerenciadorAnexos(db, storage, auditoria, NullLogger<GerenciadorAnexos>.Instance);
 
         var gerenciador = new GerenciadorDocumentosImportados(
             db, storage, fila, leitor, contasPagar, anexos, auditoria, userManager,
@@ -100,19 +79,37 @@ public class GerenciadorDocumentosImportadosTests
     {
         var c = await PrepararAsync();
 
-        var criados = await c.Gerenciador.EnviarAsync([ArquivoFalso(), ArquivoFalso("nf.pdf")], c.Financeiro.Id);
+        var resultado = await c.Gerenciador.EnviarAsync([ArquivoFalso(), ArquivoFalso("nf.pdf")], c.Financeiro.Id);
 
-        Assert.Equal(2, criados.Count);
-        Assert.All(criados, d => Assert.Equal(StatusImportacaoDocumento.Recebido, d.Status));
+        Assert.Equal(2, resultado.Criados.Count);
+        Assert.Empty(resultado.Falhas);
+        Assert.All(resultado.Criados, d => Assert.Equal(StatusImportacaoDocumento.Recebido, d.Status));
         Assert.Equal(2, c.Fila.Enfileirados.Count);
         Assert.Equal(2, c.Storage.Arquivos.Count);
+    }
+
+    [Fact]
+    public async Task EnviarAsync_com_um_arquivo_invalido_no_lote_nao_descarta_os_demais()
+    {
+        var c = await PrepararAsync();
+        c.Storage.NomesQueDevemFalhar.Add("virus.exe");
+
+        var resultado = await c.Gerenciador.EnviarAsync(
+            [ArquivoFalso(), ArquivoFalso("virus.exe"), ArquivoFalso("nf.pdf")], c.Financeiro.Id);
+
+        Assert.Equal(2, resultado.Criados.Count);
+        var falha = Assert.Single(resultado.Falhas);
+        Assert.Equal("virus.exe", falha.NomeArquivo);
+        Assert.Contains("comprovante.pdf", resultado.Criados.Select(d => d.NomeArquivo));
+        Assert.Contains("nf.pdf", resultado.Criados.Select(d => d.NomeArquivo));
+        Assert.Equal(2, c.Fila.Enfileirados.Count);
     }
 
     [Fact]
     public async Task ProcessarAsync_com_stub_deixa_documento_aguardando_revisao()
     {
         var c = await PrepararAsync();
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
 
         await c.Gerenciador.ProcessarAsync(doc.Id);
 
@@ -128,7 +125,7 @@ public class GerenciadorDocumentosImportadosTests
             TipoDocumentoDetectado.ComprovantePagamento, 0.82m,
             [new CampoLido("valor", "1530.00", 0.98m), new CampoLido("fornecedor", "Fornecedor Teste", 0.6m)]);
         var c = await PrepararAsync(resultado);
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
 
         await c.Gerenciador.ProcessarAsync(doc.Id);
 
@@ -143,7 +140,7 @@ public class GerenciadorDocumentosImportadosTests
     public async Task ProcessarAsync_marca_falha_quando_leitor_falha()
     {
         var c = await PrepararAsync(ResultadoLeituraDocumento.Falha("ilegível"));
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
 
         await c.Gerenciador.ProcessarAsync(doc.Id);
 
@@ -156,7 +153,7 @@ public class GerenciadorDocumentosImportadosTests
     public async Task AprovarAsync_sem_papel_administrador_e_recusado()
     {
         var c = await PrepararAsync();
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
         await c.Gerenciador.ProcessarAsync(doc.Id);
 
         var resultado = await c.Gerenciador.AprovarAsync(doc.Id, RevisaoValida(c.Fornecedor.Id), c.Financeiro.Id);
@@ -169,7 +166,7 @@ public class GerenciadorDocumentosImportadosTests
     public async Task AprovarAsync_como_administrador_cria_conta_e_anexa_arquivo()
     {
         var c = await PrepararAsync();
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
         await c.Gerenciador.ProcessarAsync(doc.Id);
 
         var resultado = await c.Gerenciador.AprovarAsync(doc.Id, RevisaoValida(c.Fornecedor.Id), c.Admin.Id);
@@ -191,7 +188,7 @@ public class GerenciadorDocumentosImportadosTests
     public async Task AprovarAsync_recusa_documento_que_nao_esta_aguardando_revisao()
     {
         var c = await PrepararAsync();
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
         // não processado — continua em Recebido
 
         var resultado = await c.Gerenciador.AprovarAsync(doc.Id, RevisaoValida(c.Fornecedor.Id), c.Admin.Id);
@@ -203,7 +200,7 @@ public class GerenciadorDocumentosImportadosTests
     public async Task RejeitarAsync_exige_motivo_e_marca_rejeitado()
     {
         var c = await PrepararAsync();
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
         await c.Gerenciador.ProcessarAsync(doc.Id);
 
         var semMotivo = await c.Gerenciador.RejeitarAsync(doc.Id, "  ", c.Admin.Id);
@@ -221,7 +218,7 @@ public class GerenciadorDocumentosImportadosTests
     public async Task ReprocessarAsync_recoloca_documento_com_falha_na_fila()
     {
         var c = await PrepararAsync(ResultadoLeituraDocumento.Falha("timeout"));
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
         await c.Gerenciador.ProcessarAsync(doc.Id);
         c.Fila.Enfileirados.Clear();
 
@@ -238,7 +235,7 @@ public class GerenciadorDocumentosImportadosTests
     public async Task ReprocessarAsync_recusa_documento_que_nao_falhou()
     {
         var c = await PrepararAsync();
-        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Single();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
         await c.Gerenciador.ProcessarAsync(doc.Id);
 
         var resultado = await c.Gerenciador.ReprocessarAsync(doc.Id, c.Financeiro.Id);

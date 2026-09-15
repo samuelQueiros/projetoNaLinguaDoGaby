@@ -11,4 +11,6 @@ public enum TipoDocumentoDetectado
     ComprovantePagamento,
     Contrato,
     NotaFiscal,
+    Boleto,
+    PedidoCompra,
 }

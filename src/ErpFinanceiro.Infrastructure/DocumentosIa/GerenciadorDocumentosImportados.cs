@@ -27,40 +27,53 @@ public sealed class GerenciadorDocumentosImportados(
     UserManager<Usuario> userManager,
     ILogger<GerenciadorDocumentosImportados> logger) : IGerenciadorDocumentosImportados
 {
-    public async Task<IReadOnlyList<DocumentoImportado>> EnviarAsync(IReadOnlyList<ArquivoEnviado> arquivos, Guid usuarioId)
+    public async Task<ResultadoEnvioDocumentos> EnviarAsync(IReadOnlyList<ArquivoEnviado> arquivos, Guid usuarioId)
     {
         var criados = new List<DocumentoImportado>();
+        var falhas = new List<FalhaEnvioDocumento>();
 
         foreach (var arquivo in arquivos)
         {
-            var tipoConteudo = string.IsNullOrWhiteSpace(arquivo.TipoConteudo)
-                ? "application/octet-stream"
-                : arquivo.TipoConteudo;
-
-            var armazenado = await storage.SalvarAsync(arquivo.Conteudo, arquivo.NomeArquivo, tipoConteudo);
-
-            var documento = new DocumentoImportado
+            try
             {
-                Id = Guid.NewGuid(),
-                NomeArquivo = Path.GetFileName(arquivo.NomeArquivo),
-                CaminhoArmazenamento = armazenado.CaminhoRelativo,
-                TamanhoBytes = armazenado.TamanhoBytes,
-                TipoConteudo = armazenado.TipoConteudo,
-                Status = StatusImportacaoDocumento.Recebido,
-                EnviadoPorId = usuarioId,
-            };
+                var tipoConteudo = string.IsNullOrWhiteSpace(arquivo.TipoConteudo)
+                    ? "application/octet-stream"
+                    : arquivo.TipoConteudo;
 
-            db.DocumentosImportados.Add(documento);
-            await db.SaveChangesAsync();
+                var armazenado = await storage.SalvarAsync(arquivo.Conteudo, arquivo.NomeArquivo, tipoConteudo);
 
-            await auditoria.RegistrarAsync(usuarioId, "EnviarDocumento", nameof(DocumentoImportado), documento.Id, null,
-                new { documento.NomeArquivo, documento.TamanhoBytes, documento.TipoConteudo });
+                var documento = new DocumentoImportado
+                {
+                    Id = Guid.NewGuid(),
+                    NomeArquivo = Path.GetFileName(arquivo.NomeArquivo),
+                    CaminhoArmazenamento = armazenado.CaminhoRelativo,
+                    TamanhoBytes = armazenado.TamanhoBytes,
+                    TipoConteudo = armazenado.TipoConteudo,
+                    Status = StatusImportacaoDocumento.Recebido,
+                    EnviadoPorId = usuarioId,
+                };
 
-            await fila.EnfileirarAsync(documento.Id);
-            criados.Add(documento);
+                db.DocumentosImportados.Add(documento);
+                await db.SaveChangesAsync();
+
+                await auditoria.RegistrarAsync(usuarioId, "EnviarDocumento", nameof(DocumentoImportado), documento.Id, null,
+                    new { documento.NomeArquivo, documento.TamanhoBytes, documento.TipoConteudo });
+
+                await fila.EnfileirarAsync(documento.Id);
+                criados.Add(documento);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Extensão não permitida ou tamanho excedido (ArmazenamentoAnexosDisco.SalvarAsync)
+                // — um arquivo ruim no meio de um envio múltiplo não pode
+                // abortar os demais nem esconder que os outros já foram
+                // salvos (achado da auditoria de qualidade).
+                logger.LogWarning(ex, "Falha ao enviar o arquivo {NomeArquivo} para a Central de Documentos.", arquivo.NomeArquivo);
+                falhas.Add(new FalhaEnvioDocumento(arquivo.NomeArquivo, ex.Message));
+            }
         }
 
-        return criados;
+        return new ResultadoEnvioDocumentos(criados, falhas);
     }
 
     public async Task ProcessarAsync(Guid documentoImportadoId, CancellationToken ct = default)
@@ -106,7 +119,12 @@ public sealed class GerenciadorDocumentosImportados(
         {
             logger.LogError(ex, "Falha ao processar o documento {DocumentoId}.", documentoImportadoId);
             documento.Status = StatusImportacaoDocumento.Falha;
-            documento.MensagemErro = ex.Message;
+            // ex.Message (ex.: erro de conectividade com o serviço de IA,
+            // com host/porta internos) fica só no log — mostrar isso pra
+            // qualquer usuário autenticado era um achado da auditoria de
+            // segurança. resultado.Erro (acima) já é uma mensagem pensada
+            // pra tela, essa aqui não.
+            documento.MensagemErro = "Não consegui processar este documento — tente enviar de novo em instantes.";
         }
 
         documento.ProcessadoEm = DateTime.UtcNow;
@@ -278,6 +296,7 @@ public sealed class GerenciadorDocumentosImportados(
         TipoDocumentoDetectado.ComprovantePagamento => TipoDocumentoAnexo.Comprovante,
         TipoDocumentoDetectado.Contrato => TipoDocumentoAnexo.Contrato,
         TipoDocumentoDetectado.NotaFiscal => TipoDocumentoAnexo.NotaFiscal,
+        TipoDocumentoDetectado.Boleto => TipoDocumentoAnexo.Boleto,
         _ => TipoDocumentoAnexo.Outros,
     };
 }

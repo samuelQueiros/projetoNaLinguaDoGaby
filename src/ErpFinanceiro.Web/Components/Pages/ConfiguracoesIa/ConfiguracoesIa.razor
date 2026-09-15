@@ -1,0 +1,247 @@
+@page "/configuracoes-ia"
+@attribute [Authorize(Roles = "Administrador")]
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using ErpFinanceiro.Application.ConfiguracoesIa
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject IGerenciadorConfiguracaoIa Gerenciador
+@inject UserManager<Usuario> UserManager
+
+<PageTitle>Configurações de IA</PageTitle>
+
+<h1>Configurações de IA</h1>
+<p class="text-muted">
+    Provedor, modelo e chave usados pela leitura automática de documentos e pelo chat.
+    Trocar aqui vale na próxima chamada — não precisa reiniciar o sistema.
+</p>
+
+@if (carregando)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Leitura de documentos</h5>
+                    <p class="card-subtitle mb-3 text-muted">
+                        Usado pela Central de Documentos para classificar e extrair dados dos arquivos enviados.
+                    </p>
+
+                    <EditForm Model="documentos.Modelo" OnValidSubmit="() => SalvarAsync(documentos)">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" />
+
+                        <div class="mb-2">
+                            <label class="form-label">Provedor</label>
+                            <InputSelect class="form-select" @bind-Value="documentos.Modelo.Provedor">
+                                <option value="@ProvedorIa.Gemini">Google Gemini</option>
+                                <option value="@ProvedorIa.OpenAi">OpenAI</option>
+                                <option value="@ProvedorIa.Anthropic">Anthropic</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Modelo</label>
+                            <InputText class="form-control" @bind-Value="documentos.Modelo.Modelo" placeholder="ex.: gemini-2.5-flash" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Chave de API</label>
+                            <InputText class="form-control" type="password" @bind-Value="documentos.Modelo.NovaApiKey"
+                                       placeholder="@(documentos.TemChaveCadastrada ? "•••••••• (deixe em branco pra manter)" : "Cole a chave aqui")" />
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label">Timeout (segundos)</label>
+                                <InputNumber class="form-control" @bind-Value="documentos.Modelo.TimeoutSegundos" />
+                            </div>
+                            <div class="col-6 d-flex align-items-end">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" id="ativo-documentos" @bind-Value="documentos.Modelo.Ativo" />
+                                    <label class="form-check-label" for="ativo-documentos">Ativo</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(documentos.Mensagem))
+                        {
+                            <div class="alert @(documentos.MensagemEhErro ? "alert-danger" : "alert-success") py-2">@documentos.Mensagem</div>
+                        }
+
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                        <button type="button" class="btn btn-outline-secondary" disabled="@documentos.Testando" @onclick="() => TestarAsync(documentos)">
+                            @(documentos.Testando ? "Testando..." : "Testar conexão")
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Chat</h5>
+                    <p class="card-subtitle mb-3 text-muted">
+                        Usado pelo assistente de IA no canto da tela para responder perguntas sobre os dados do sistema.
+                    </p>
+
+                    <EditForm Model="chat.Modelo" OnValidSubmit="() => SalvarAsync(chat)">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" />
+
+                        <div class="mb-2">
+                            <label class="form-label">Provedor</label>
+                            <InputSelect class="form-select" @bind-Value="chat.Modelo.Provedor">
+                                <option value="@ProvedorIa.Gemini">Google Gemini</option>
+                                <option value="@ProvedorIa.OpenAi">OpenAI</option>
+                                <option value="@ProvedorIa.Anthropic">Anthropic</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Modelo</label>
+                            <InputText class="form-control" @bind-Value="chat.Modelo.Modelo" placeholder="ex.: gemini-2.5-flash" />
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Chave de API</label>
+                            <InputText class="form-control" type="password" @bind-Value="chat.Modelo.NovaApiKey"
+                                       placeholder="@(chat.TemChaveCadastrada ? "•••••••• (deixe em branco pra manter)" : "Cole a chave aqui")" />
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label">Timeout (segundos)</label>
+                                <InputNumber class="form-control" @bind-Value="chat.Modelo.TimeoutSegundos" />
+                            </div>
+                            <div class="col-6 d-flex align-items-end">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" id="ativo-chat" @bind-Value="chat.Modelo.Ativo" />
+                                    <label class="form-check-label" for="ativo-chat">Ativo</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(chat.Mensagem))
+                        {
+                            <div class="alert @(chat.MensagemEhErro ? "alert-danger" : "alert-success") py-2">@chat.Mensagem</div>
+                        }
+
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                        <button type="button" class="btn btn-outline-secondary" disabled="@chat.Testando" @onclick="() => TestarAsync(chat)">
+                            @(chat.Testando ? "Testando..." : "Testar conexão")
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private Guid usuarioId;
+    private bool carregando = true;
+    private SecaoFinalidade documentos = new(FinalidadeConfiguracaoIa.Documentos);
+    private SecaoFinalidade chat = new(FinalidadeConfiguracaoIa.Chat);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await (AuthState ?? Task.FromResult(new AuthenticationState(new ClaimsPrincipal())));
+        var usuario = await UserManager.GetUserAsync(authState.User);
+        usuarioId = usuario?.Id ?? Guid.Empty;
+
+        await CarregarAsync(documentos);
+        await CarregarAsync(chat);
+        carregando = false;
+    }
+
+    private async Task CarregarAsync(SecaoFinalidade secao)
+    {
+        var existente = await Gerenciador.ObterAsync(secao.Finalidade);
+        if (existente is not null)
+        {
+            secao.Modelo.Provedor = existente.Provedor;
+            secao.Modelo.Modelo = existente.Modelo;
+            secao.Modelo.Ativo = existente.Ativo;
+            secao.Modelo.TimeoutSegundos = existente.TimeoutSegundos;
+            secao.TemChaveCadastrada = !string.IsNullOrWhiteSpace(existente.ApiKey);
+        }
+    }
+
+    private async Task SalvarAsync(SecaoFinalidade secao)
+    {
+        secao.Mensagem = null;
+        secao.MensagemEhErro = false;
+
+        var input = new ConfiguracaoIaInput(
+            secao.Modelo.Provedor,
+            secao.Modelo.Modelo,
+            string.IsNullOrWhiteSpace(secao.Modelo.NovaApiKey) ? null : secao.Modelo.NovaApiKey,
+            secao.Modelo.Ativo,
+            secao.Modelo.TimeoutSegundos);
+
+        var resultado = await Gerenciador.SalvarAsync(secao.Finalidade, input, usuarioId);
+        if (!resultado.Sucesso)
+        {
+            secao.Mensagem = string.Join("; ", resultado.Erros);
+            secao.MensagemEhErro = true;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(secao.Modelo.NovaApiKey))
+        {
+            secao.TemChaveCadastrada = true;
+            secao.Modelo.NovaApiKey = "";
+        }
+
+        secao.Mensagem = "Configuração salva.";
+    }
+
+    private async Task TestarAsync(SecaoFinalidade secao)
+    {
+        secao.Testando = true;
+        secao.Mensagem = null;
+        secao.MensagemEhErro = false;
+        StateHasChanged();
+
+        var resultado = await Gerenciador.TestarConexaoAsync(secao.Finalidade);
+        secao.Testando = false;
+        secao.Mensagem = resultado.Sucesso ? "Conexão funcionando." : string.Join("; ", resultado.Erros);
+        secao.MensagemEhErro = !resultado.Sucesso;
+    }
+
+    private sealed class SecaoFinalidade(FinalidadeConfiguracaoIa finalidade)
+    {
+        public FinalidadeConfiguracaoIa Finalidade { get; } = finalidade;
+        public FormularioModelo Modelo { get; } = new();
+        public bool TemChaveCadastrada { get; set; }
+        public bool Testando { get; set; }
+        public string? Mensagem { get; set; }
+        public bool MensagemEhErro { get; set; }
+    }
+
+    private sealed class FormularioModelo
+    {
+        public ProvedorIa Provedor { get; set; } = ProvedorIa.Gemini;
+
+        [Required(ErrorMessage = "Informe o modelo.")]
+        public string Modelo { get; set; } = "";
+
+        public string? NovaApiKey { get; set; }
+
+        public bool Ativo { get; set; }
+
+        [Range(5, 600)]
+        public int TimeoutSegundos { get; set; } = 90;
+    }
+}

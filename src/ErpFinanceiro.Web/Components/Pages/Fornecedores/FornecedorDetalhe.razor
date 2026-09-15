@@ -104,200 +104,10 @@ else
 
     @if (!EhNovo && fornecedor is not null)
     {
-        <h3>Dados bancários</h3>
-        <table class="table table-sm">
-            <thead>
-                <tr>
-                    <th>Banco</th>
-                    <th>Agência</th>
-                    <th>Conta</th>
-                    <th>Tipo</th>
-                    <th>Chave PIX</th>
-                    <th>Principal</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var d in fornecedor.DadosBancarios)
-                {
-                    <tr>
-                        <td>@d.Banco</td>
-                        <td>@d.Agencia</td>
-                        <td>@Mascarar(d.Conta)</td>
-                        <td>@(d.Tipo == TipoContaBancaria.Corrente ? "Corrente" : "Poupança")</td>
-                        <td>@Mascarar(d.ChavePix)</td>
-                        <td>@(d.Principal ? "Sim" : "")</td>
-                        <td class="text-end">
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirEdicaoDados(d)">Editar</button>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => PedirConfirmacaoRemocao(d)">Remover</button>
-                        </td>
-                    </tr>
-                }
-                @if (fornecedor.DadosBancarios.Count == 0)
-                {
-                    <tr><td colspan="7" class="text-center text-muted">Nenhum dado bancário cadastrado.</td></tr>
-                }
-            </tbody>
-        </table>
-
-        @if (!formularioDadosAberto)
-        {
-            <button class="btn btn-outline-primary" @onclick="AbrirNovoDados">+ Adicionar dados bancários</button>
-        }
-        else
-        {
-            <div class="card" style="max-width: 40rem;">
-                <div class="card-body">
-                    <h5 class="card-title">@(editandoDadosId is null ? "Novo dado bancário" : "Editar dado bancário")</h5>
-                    <EditForm Model="modeloDados" OnValidSubmit="SalvarDadosBancariosAsync">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary class="text-danger" />
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-6">
-                                <label class="form-label">Banco</label>
-                                <InputText class="form-control" @bind-Value="modeloDados.Banco" />
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Agência</label>
-                                <InputText class="form-control" @bind-Value="modeloDados.Agencia" />
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Tipo</label>
-                                <InputSelect class="form-select" @bind-Value="modeloDados.Tipo">
-                                    <option value="@TipoContaBancaria.Corrente">Corrente</option>
-                                    <option value="@TipoContaBancaria.Poupanca">Poupança</option>
-                                </InputSelect>
-                            </div>
-                        </div>
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-6">
-                                <label class="form-label">Conta</label>
-                                <InputText class="form-control" @bind-Value="modeloDados.Conta" />
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Chave PIX</label>
-                                <InputText class="form-control" @bind-Value="modeloDados.ChavePix" />
-                            </div>
-                        </div>
-                        <div class="form-check mb-2">
-                            <InputCheckbox class="form-check-input" id="principalCk" @bind-Value="modeloDados.Principal" />
-                            <label class="form-check-label" for="principalCk">Principal</label>
-                        </div>
-                        @if (!string.IsNullOrEmpty(erroDados))
-                        {
-                            <div class="alert alert-danger">@erroDados</div>
-                        }
-                        <button type="submit" class="btn btn-primary">Salvar</button>
-                        <button type="button" class="btn btn-link" @onclick="FecharFormularioDados">Cancelar</button>
-                    </EditForm>
-                </div>
-            </div>
-        }
-
-        <h3 class="mt-4">Histórico financeiro</h3>
-        @if (contasFornecedor is null)
-        {
-            <p><em>Carregando...</em></p>
-        }
-        else
-        {
-            <div class="row g-3 mb-3">
-                <div class="col-sm-4 col-lg-2">
-                    <div class="card h-100"><div class="card-body">
-                        <h6 class="card-subtitle text-muted">Pagas</h6>
-                        <p class="mb-0">@contasPagas.Count — @contasPagas.Sum(c => c.ValorFinal).ToString("C")</p>
-                    </div></div>
-                </div>
-                <div class="col-sm-4 col-lg-2">
-                    <div class="card h-100"><div class="card-body">
-                        <h6 class="card-subtitle text-muted">Em aberto</h6>
-                        <p class="mb-0">@contasEmAberto.Count — @contasEmAberto.Sum(c => c.ValorFinal).ToString("C")</p>
-                    </div></div>
-                </div>
-                <div class="col-sm-4 col-lg-2">
-                    <div class="card h-100 border-danger"><div class="card-body">
-                        <h6 class="card-subtitle text-muted">Vencidas</h6>
-                        <p class="mb-0 text-danger">@contasVencidas.Count — @contasVencidas.Sum(c => c.ValorFinal).ToString("C")</p>
-                    </div></div>
-                </div>
-                <div class="col-sm-4 col-lg-2">
-                    <div class="card h-100"><div class="card-body">
-                        <h6 class="card-subtitle text-muted">Futuras</h6>
-                        <p class="mb-0">@contasFuturas.Count — @contasFuturas.Sum(c => c.ValorFinal).ToString("C")</p>
-                    </div></div>
-                </div>
-                <div class="col-sm-4 col-lg-2">
-                    <div class="card h-100"><div class="card-body">
-                        <h6 class="card-subtitle text-muted">Notas fiscais</h6>
-                        <p class="mb-0">@notasFornecedor!.Count</p>
-                    </div></div>
-                </div>
-                <div class="col-sm-4 col-lg-2">
-                    <div class="card h-100"><div class="card-body">
-                        <h6 class="card-subtitle text-muted">Boletos</h6>
-                        <p class="mb-0">@boletosFornecedor!.Count</p>
-                    </div></div>
-                </div>
-            </div>
-
-            <h5>Contas a pagar</h5>
-            <table class="table table-sm table-striped">
-                <thead><tr><th>Descrição</th><th>Vencimento</th><th class="text-end">Valor</th><th>Status</th></tr></thead>
-                <tbody>
-                    @foreach (var c in contasFornecedor)
-                    {
-                        <tr>
-                            <td>@c.Descricao</td>
-                            <td>@c.Vencimento.ToString("dd/MM/yyyy")</td>
-                            <td class="text-end">@c.ValorFinal.ToString("C")</td>
-                            <td>@c.StatusFinanceiro</td>
-                        </tr>
-                    }
-                    @if (contasFornecedor.Count == 0)
-                    {
-                        <tr><td colspan="4" class="text-center text-muted">Nenhuma conta a pagar.</td></tr>
-                    }
-                </tbody>
-            </table>
-
-            <h5>Notas fiscais</h5>
-            <table class="table table-sm table-striped">
-                <thead><tr><th>Número</th><th>Emissão</th><th class="text-end">Valor</th></tr></thead>
-                <tbody>
-                    @foreach (var n in notasFornecedor)
-                    {
-                        <tr><td>@n.Numero</td><td>@n.Emissao.ToString("dd/MM/yyyy")</td><td class="text-end">@n.Valor.ToString("C")</td></tr>
-                    }
-                    @if (notasFornecedor.Count == 0)
-                    {
-                        <tr><td colspan="3" class="text-center text-muted">Nenhuma nota fiscal.</td></tr>
-                    }
-                </tbody>
-            </table>
-
-            <h5>Boletos</h5>
-            <table class="table table-sm table-striped">
-                <thead><tr><th>Número</th><th>Vencimento</th><th class="text-end">Valor</th><th>Status</th></tr></thead>
-                <tbody>
-                    @foreach (var b in boletosFornecedor)
-                    {
-                        <tr><td>@b.Numero</td><td>@b.Vencimento.ToString("dd/MM/yyyy")</td><td class="text-end">@b.Valor.ToString("C")</td><td>@b.Status</td></tr>
-                    }
-                    @if (boletosFornecedor.Count == 0)
-                    {
-                        <tr><td colspan="4" class="text-center text-muted">Nenhum boleto.</td></tr>
-                    }
-                </tbody>
-            </table>
-        }
+        <PainelDadosBancarios Fornecedor="fornecedor" OnAlterado="CarregarFornecedorAsync" />
+        <PainelHistoricoFinanceiro ContasFornecedor="contasFornecedor" NotasFornecedor="notasFornecedor" BoletosFornecedor="boletosFornecedor" />
     }
 }
-
-<ConfirmacaoModal Visivel="confirmacaoVisivel"
-                  Titulo="Remover dados bancários"
-                  Mensagem="@($"Tem certeza que deseja remover os dados de \"{dadosParaRemover?.Banco}\"?")"
-                  OnConfirmar="ConfirmarRemocaoAsync"
-                  OnCancelar="() => confirmacaoVisivel = false" />
 
 @code {
     [Parameter]
@@ -310,20 +120,9 @@ else
     private FormularioModelo modelo = new();
     private string? erro;
 
-    private bool formularioDadosAberto;
-    private Guid? editandoDadosId;
-    private FormularioDadosModelo modeloDados = new();
-    private string? erroDados;
-    private bool confirmacaoVisivel;
-    private DadosBancariosFornecedor? dadosParaRemover;
-
     private List<ContaPagar>? contasFornecedor;
     private List<NotaFiscal>? notasFornecedor;
     private List<Boleto>? boletosFornecedor;
-    private List<ContaPagar> contasPagas = new();
-    private List<ContaPagar> contasEmAberto = new();
-    private List<ContaPagar> contasVencidas = new();
-    private List<ContaPagar> contasFuturas = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -354,22 +153,20 @@ else
                 Observacoes = fornecedor.Observacoes,
             };
 
-            await CarregarHistoricoAsync();
+            // Sequencial de propósito: os 3 Gerenciadores abaixo compartilham a
+            // mesma instância de AppDbContext (escopo do circuito Blazor
+            // Server), que não suporta operações concorrentes. Carregado aqui
+            // pelo pai (e não dentro de PainelHistoricoFinanceiro) porque esse
+            // painel monta ao mesmo tempo que PainelDadosBancarios, e o Blazor
+            // não garante ordem sequencial entre OnInitializedAsync de
+            // componentes-irmãos — dois filhos buscando dados ao mesmo tempo
+            // derrubava com "A second operation was started on this context
+            // instance..." (mesma classe de bug de ContaPagarDetalhe.razor,
+            // descoberta testando de verdade esta tela).
+            contasFornecedor = (await GerenciadorContasPagar.ListarAsync(new FiltroContasPagar(FornecedorId: Id))).ToList();
+            notasFornecedor = (await GerenciadorNotasFiscais.ListarAsync(new FiltroNotasFiscais(FornecedorId: Id))).ToList();
+            boletosFornecedor = (await GerenciadorBoletos.ListarAsync(new FiltroBoletos(FornecedorId: Id))).ToList();
         }
-    }
-
-    private async Task CarregarHistoricoAsync()
-    {
-        var hoje = DateOnly.FromDateTime(DateTime.Today);
-
-        contasFornecedor = (await GerenciadorContasPagar.ListarAsync(new FiltroContasPagar(FornecedorId: Id))).ToList();
-        notasFornecedor = (await GerenciadorNotasFiscais.ListarAsync(new FiltroNotasFiscais(FornecedorId: Id))).ToList();
-        boletosFornecedor = (await GerenciadorBoletos.ListarAsync(new FiltroBoletos(FornecedorId: Id))).ToList();
-
-        contasPagas = contasFornecedor.Where(c => c.StatusFinanceiro == StatusFinanceiro.Paga).ToList();
-        contasEmAberto = contasFornecedor.Where(c => c.StatusFinanceiro != StatusFinanceiro.Paga && c.StatusFinanceiro != StatusFinanceiro.Cancelada && c.Vencimento >= hoje).ToList();
-        contasVencidas = contasFornecedor.Where(c => c.StatusFinanceiro != StatusFinanceiro.Paga && c.StatusFinanceiro != StatusFinanceiro.Cancelada && c.Vencimento < hoje).ToList();
-        contasFuturas = contasEmAberto.Where(c => c.Vencimento > hoje).ToList();
     }
 
     private async Task SalvarAsync()
@@ -381,108 +178,28 @@ else
             string.IsNullOrWhiteSpace(modelo.FormaPagamentoPadraoId) ? null : Guid.Parse(modelo.FormaPagamentoPadraoId),
             modelo.Observacoes);
 
-        try
+        if (EhNovo)
         {
-            if (EhNovo)
+            var resultado = await Gerenciador.CriarAsync(input);
+            if (!resultado.Sucesso)
             {
-                var novo = await Gerenciador.CriarAsync(input);
-                NavigationManager.NavigateTo($"/fornecedores/{novo.Id}");
+                erro = string.Join("; ", resultado.Operacao.Erros);
+                return;
             }
-            else
+
+            NavigationManager.NavigateTo($"/fornecedores/{resultado.Entidade!.Id}");
+        }
+        else
+        {
+            var resultado = await Gerenciador.EditarAsync(Id!.Value, input);
+            if (!resultado.Sucesso)
             {
-                var resultado = await Gerenciador.EditarAsync(Id!.Value, input);
-                if (!resultado.Sucesso)
-                {
-                    erro = string.Join("; ", resultado.Erros);
-                    return;
-                }
-
-                await CarregarFornecedorAsync();
+                erro = string.Join("; ", resultado.Erros);
+                return;
             }
+
+            await CarregarFornecedorAsync();
         }
-        catch (InvalidOperationException ex)
-        {
-            erro = ex.Message;
-        }
-    }
-
-    private void AbrirNovoDados()
-    {
-        editandoDadosId = null;
-        modeloDados = new FormularioDadosModelo();
-        erroDados = null;
-        formularioDadosAberto = true;
-    }
-
-    private void AbrirEdicaoDados(DadosBancariosFornecedor d)
-    {
-        editandoDadosId = d.Id;
-        modeloDados = new FormularioDadosModelo
-        {
-            Banco = d.Banco,
-            Agencia = d.Agencia,
-            Conta = d.Conta,
-            Tipo = d.Tipo,
-            ChavePix = d.ChavePix,
-            Principal = d.Principal,
-        };
-        erroDados = null;
-        formularioDadosAberto = true;
-    }
-
-    private void FecharFormularioDados()
-    {
-        formularioDadosAberto = false;
-        erroDados = null;
-    }
-
-    private async Task SalvarDadosBancariosAsync()
-    {
-        erroDados = null;
-        var input = new DadosBancariosInput(
-            modeloDados.Banco, modeloDados.Agencia, modeloDados.Conta, modeloDados.Tipo,
-            modeloDados.ChavePix, modeloDados.Principal);
-
-        var resultado = editandoDadosId is Guid id
-            ? await Gerenciador.EditarDadosBancariosAsync(id, input)
-            : await Gerenciador.AdicionarDadosBancariosAsync(Id!.Value, input);
-
-        if (!resultado.Sucesso)
-        {
-            erroDados = string.Join("; ", resultado.Erros);
-            return;
-        }
-
-        formularioDadosAberto = false;
-        await CarregarFornecedorAsync();
-    }
-
-    private void PedirConfirmacaoRemocao(DadosBancariosFornecedor d)
-    {
-        dadosParaRemover = d;
-        confirmacaoVisivel = true;
-    }
-
-    private async Task ConfirmarRemocaoAsync()
-    {
-        if (dadosParaRemover is not null)
-        {
-            await Gerenciador.RemoverDadosBancariosAsync(dadosParaRemover.Id);
-        }
-
-        confirmacaoVisivel = false;
-        dadosParaRemover = null;
-        await CarregarFornecedorAsync();
-    }
-
-    private static string Mascarar(string? valor)
-    {
-        if (string.IsNullOrEmpty(valor))
-        {
-            return "—";
-        }
-
-        return valor.Length <= 4 ? new string('*', valor.Length) : new string('*', valor.Length - 4) + valor[^4..];
     }
 
     private sealed class FormularioModelo
@@ -507,21 +224,5 @@ else
         public string? ContatoResponsavel { get; set; }
         public string FormaPagamentoPadraoId { get; set; } = "";
         public string? Observacoes { get; set; }
-    }
-
-    private sealed class FormularioDadosModelo
-    {
-        [Required(ErrorMessage = "Informe o banco.")]
-        public string Banco { get; set; } = "";
-
-        [Required(ErrorMessage = "Informe a agência.")]
-        public string Agencia { get; set; } = "";
-
-        [Required(ErrorMessage = "Informe a conta.")]
-        public string Conta { get; set; } = "";
-
-        public TipoContaBancaria Tipo { get; set; }
-        public string? ChavePix { get; set; }
-        public bool Principal { get; set; }
     }
 }

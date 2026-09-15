@@ -22,7 +22,17 @@ namespace ErpFinanceiro.Application.DocumentosIa;
 /// </summary>
 public interface IGerenciadorDocumentosImportados
 {
-    Task<IReadOnlyList<DocumentoImportado>> EnviarAsync(IReadOnlyList<ArquivoEnviado> arquivos, Guid usuarioId);
+    /// <summary>
+    /// Processa cada arquivo do lote de forma independente — um arquivo
+    /// rejeitado (extensão não permitida, tamanho excedido) não aborta o
+    /// resto do lote nem desfaz o que já foi salvo; ele só aparece em
+    /// <see cref="ResultadoEnvioDocumentos.Falhas"/>. Antes, uma falha no
+    /// arquivo N de um envio múltiplo abortava com exceção, deixando os
+    /// arquivos 1..N-1 já salvos no banco/disco mas o chamador reportando
+    /// como se nada tivesse sido enviado (achado da auditoria de
+    /// qualidade).
+    /// </summary>
+    Task<ResultadoEnvioDocumentos> EnviarAsync(IReadOnlyList<ArquivoEnviado> arquivos, Guid usuarioId);
 
     Task ProcessarAsync(Guid documentoImportadoId, CancellationToken ct = default);
 

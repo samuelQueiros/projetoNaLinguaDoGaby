@@ -335,6 +335,58 @@ namespace ErpFinanceiro.Infrastructure.Data.Migrations
                     b.ToTable("CentrosDeCusto", (string)null);
                 });
 
+            modelBuilder.Entity("ErpFinanceiro.Domain.ConfiguracaoIa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ApiKey")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("AtualizadoPorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Finalidade")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Modelo")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Provedor")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("TimeoutSegundos")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AtualizadoPorId");
+
+                    b.HasIndex("Finalidade")
+                        .IsUnique();
+
+                    b.ToTable("ConfiguracoesIa", (string)null);
+                });
+
             modelBuilder.Entity("ErpFinanceiro.Domain.ContaBancariaEmpresa", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1267,6 +1319,16 @@ namespace ErpFinanceiro.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Responsavel");
+                });
+
+            modelBuilder.Entity("ErpFinanceiro.Domain.ConfiguracaoIa", b =>
+                {
+                    b.HasOne("ErpFinanceiro.Domain.Usuario", "AtualizadoPor")
+                        .WithMany()
+                        .HasForeignKey("AtualizadoPorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AtualizadoPor");
                 });
 
             modelBuilder.Entity("ErpFinanceiro.Domain.ContaPagar", b =>

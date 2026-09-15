@@ -17,6 +17,19 @@ services:
       timeout: 5s
       retries: 10
 
+  servico-documentos:
+    build: ./servico-documentos
+    container_name: erp-servico-documentos
+    restart: unless-stopped
+    env_file: ./servico-documentos/.env
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   erp_postgres_data:
     name: erp_financeiro_postgres_data

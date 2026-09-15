@@ -1,0 +1,185 @@
+@* Widget de chat flutuante — vive dentro do MainLayout (fora do @Body), então
+   mantém o histórico da conversa ao navegar entre telas dentro do mesmo
+   circuito Blazor Server. Ilha interativa própria (@rendermode abaixo) —
+   o layout em volta continua renderizado estaticamente. *@
+@rendermode InteractiveServer
+@using System.Security.Claims
+@using ErpFinanceiro.Application.ChatIa
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Identity
+@inject IAgenteChatIa Agente
+@inject UserManager<Usuario> UserManager
+@inject IJSRuntime JS
+
+<AuthorizeView Context="autorizacaoChat">
+    <Authorized>
+        <div class="chat-ia">
+            @if (aberto)
+            {
+                <div class="chat-ia__painel">
+                    <div class="chat-ia__cabecalho">
+                        <div class="chat-ia__titulo">
+                            <span class="chat-ia__ponto"></span>
+                            Assistente financeiro
+                        </div>
+                        <button type="button" class="chat-ia__fechar" @onclick="Fechar" aria-label="Fechar">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <div class="chat-ia__corpo" @ref="corpoRef">
+                        @if (historico.Count == 0)
+                        {
+                            <div class="chat-ia__boasvindas">
+                                <p>Pergunte sobre contas a pagar, fornecedores, notas fiscais, boletos ou os indicadores do painel. Eu só consulto — nunca crio, edito, aprovo ou exclui nada.</p>
+                                <div class="chat-ia__sugestoes">
+                                    @foreach (var sugestao in Sugestoes)
+                                    {
+                                        <button type="button" class="chat-ia__sugestao" @onclick="() => EnviarSugestaoAsync(sugestao)" disabled="@enviando">@sugestao</button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var msg in historico)
+                            {
+                                <div class="chat-ia__balao chat-ia__balao--@(msg.Papel == "user" ? "usuario" : "assistente")">
+                                    @msg.Texto
+                                </div>
+                            }
+                        }
+
+                        @if (enviando)
+                        {
+                            <div class="chat-ia__balao chat-ia__balao--assistente chat-ia__balao--carregando">
+                                <span class="spinner-border spinner-border-sm"></span> pensando…
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(erro))
+                        {
+                            <div class="chat-ia__erro">@erro</div>
+                        }
+                    </div>
+
+                    <EditForm Model="this" OnValidSubmit="EnviarAsync" class="chat-ia__rodape">
+                        <input class="chat-ia__campo" placeholder="Escreva sua pergunta..." @bind="mensagemAtual" @bind:event="oninput"
+                               disabled="@enviando" />
+                        <button type="submit" class="chat-ia__enviar" disabled="@(enviando || string.IsNullOrWhiteSpace(mensagemAtual))" aria-label="Enviar">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" /></svg>
+                        </button>
+                    </EditForm>
+                </div>
+            }
+
+            <button type="button" class="chat-ia__botao" @onclick="AlternarAsync" aria-label="@(aberto ? "Fechar assistente" : "Abrir assistente")">
+                @if (aberto)
+                {
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                }
+                else
+                {
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+                    </svg>
+                }
+            </button>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private static readonly string[] Sugestoes =
+    [
+        "Quanto está vencido?",
+        "O que vence essa semana?",
+        "Tem documento pendente de revisão?",
+        "Quanto já pagamos esse mês?",
+    ];
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private ElementReference corpoRef;
+    private bool aberto;
+    private bool jaAbriuUmaVez;
+    private string mensagemAtual = "";
+    private bool enviando;
+    private string? erro;
+    private Guid usuarioId;
+    private readonly List<MensagemChatIa> historico = new();
+
+    private async Task<Guid> ObterUsuarioIdAsync()
+    {
+        if (usuarioId != Guid.Empty)
+        {
+            return usuarioId;
+        }
+
+        var state = await (AuthState ?? Task.FromResult(new AuthenticationState(new ClaimsPrincipal())));
+        var usuario = await UserManager.GetUserAsync(state.User);
+        usuarioId = usuario?.Id ?? Guid.Empty;
+        return usuarioId;
+    }
+
+    private async Task AlternarAsync()
+    {
+        aberto = !aberto;
+        if (aberto && !jaAbriuUmaVez)
+        {
+            jaAbriuUmaVez = true;
+            await ObterUsuarioIdAsync();
+        }
+    }
+
+    private void Fechar() => aberto = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (aberto)
+        {
+            await JS.InvokeVoidAsync("chatIaRolarParaFim", corpoRef);
+        }
+    }
+
+    private Task EnviarSugestaoAsync(string sugestao)
+    {
+        mensagemAtual = sugestao;
+        return EnviarAsync();
+    }
+
+    private async Task EnviarAsync()
+    {
+        var texto = mensagemAtual.Trim();
+        if (string.IsNullOrWhiteSpace(texto) || enviando)
+        {
+            return;
+        }
+
+        erro = null;
+        enviando = true;
+        mensagemAtual = "";
+        var historicoParaEnvio = historico.ToList();
+        historico.Add(new MensagemChatIa("user", texto));
+        StateHasChanged();
+
+        try
+        {
+            var id = await ObterUsuarioIdAsync();
+            var resposta = await Agente.ResponderAsync(historicoParaEnvio, texto, id);
+            if (resposta.Sucesso)
+            {
+                historico.Add(new MensagemChatIa("model", resposta.Texto));
+            }
+            else
+            {
+                erro = resposta.Texto;
+            }
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+}

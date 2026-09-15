@@ -16,9 +16,12 @@ public class GerenciadorContasPagarTests
         db.Fornecedores.Add(fornecedor);
         await db.SaveChangesAsync();
 
+        var userManager = IdentityTestHelpers.CriarUserManager(db);
+        var usuario = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, "Financeiro", "Usuário Financeiro");
+
         var auditoria = new RegistradorAuditoriaFalso();
-        var gerenciador = new GerenciadorContasPagar(db, auditoria);
-        return (db, gerenciador, auditoria, fornecedor.Id, Guid.NewGuid());
+        var gerenciador = new GerenciadorContasPagar(db, auditoria, userManager);
+        return (db, gerenciador, auditoria, fornecedor.Id, usuario.Id);
     }
 
     private static ContaPagarInput InputPadrao(Guid fornecedorId, decimal valorOriginal = 100m) =>
@@ -170,5 +173,48 @@ public class GerenciadorContasPagarTests
 
         Assert.Empty(listaPadrao);
         Assert.Single(listaCompleta);
+    }
+
+    [Fact]
+    public async Task CriarAsync_por_usuario_Consulta_e_bloqueado()
+    {
+        var (db, gerenciador, _, fornecedorId, _) = await PrepararAsync();
+        var userManager = IdentityTestHelpers.CriarUserManager(db);
+        var consulta = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, "Consulta", "Usuária Consulta");
+
+        var resultado = await gerenciador.CriarAsync(InputPadrao(fornecedorId), consulta.Id);
+
+        Assert.False(resultado.Operacao.Sucesso);
+        Assert.Empty(db.ContasPagar);
+    }
+
+    [Fact]
+    public async Task EditarAsync_por_usuario_Consulta_e_bloqueado()
+    {
+        var (db, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
+        var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId, 100m), usuarioId);
+        var userManager = IdentityTestHelpers.CriarUserManager(db);
+        var consulta = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, "Consulta", "Usuária Consulta");
+
+        var resultado = await gerenciador.EditarAsync(criada.Conta!.Id, InputPadrao(fornecedorId, 999m), consulta.Id);
+
+        Assert.False(resultado.Sucesso);
+        var doBanco = await db.ContasPagar.FindAsync(criada.Conta.Id);
+        Assert.Equal(100m, doBanco!.ValorFinal);
+    }
+
+    [Fact]
+    public async Task ExcluirAsync_por_usuario_Consulta_e_bloqueado()
+    {
+        var (db, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
+        var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId), usuarioId);
+        var userManager = IdentityTestHelpers.CriarUserManager(db);
+        var consulta = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, "Consulta", "Usuária Consulta");
+
+        var resultado = await gerenciador.ExcluirAsync(criada.Conta!.Id, consulta.Id);
+
+        Assert.False(resultado.Sucesso);
+        var doBanco = await db.ContasPagar.FindAsync(criada.Conta.Id);
+        Assert.Null(doBanco!.ExcluidoEm);
     }
 }

@@ -39,6 +39,7 @@
 else
 {
     <p class="text-muted">@registros.Count registro(s) — mostrando os mais recentes primeiro (limite de 200).</p>
+    <div class="tabela-cartao">
     <table class="table table-striped align-middle table-sm">
         <thead>
             <tr><th>Data/hora</th><th>Usuário</th><th>Ação</th><th>Entidade</th><th></th></tr>
@@ -81,6 +82,7 @@ else
             }
         </tbody>
     </table>
+    </div>
 }
 
 @code {

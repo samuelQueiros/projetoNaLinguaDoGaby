@@ -39,8 +39,8 @@ public sealed class ExportadorContasPagar : IExportadorContasPagar
             planilha.Cell(linha, 5).Style.DateFormat.Format = "dd/MM/yyyy";
             planilha.Cell(linha, 6).Value = c.ValorOriginal;
             planilha.Cell(linha, 7).Value = c.ValorFinal;
-            planilha.Cell(linha, 8).Value = RotuloStatusFinanceiro(c.StatusFinanceiro);
-            planilha.Cell(linha, 9).Value = RotuloStatusAprovacao(c.StatusAprovacao);
+            planilha.Cell(linha, 8).Value = c.StatusFinanceiro.Rotulo();
+            planilha.Cell(linha, 9).Value = c.StatusAprovacao.Rotulo();
             linha++;
         }
 
@@ -79,8 +79,8 @@ public sealed class ExportadorContasPagar : IExportadorContasPagar
                 csv.WriteField(c.Vencimento.ToString("dd/MM/yyyy"));
                 csv.WriteField(c.ValorOriginal);
                 csv.WriteField(c.ValorFinal);
-                csv.WriteField(RotuloStatusFinanceiro(c.StatusFinanceiro));
-                csv.WriteField(RotuloStatusAprovacao(c.StatusAprovacao));
+                csv.WriteField(c.StatusFinanceiro.Rotulo());
+                csv.WriteField(c.StatusAprovacao.Rotulo());
                 csv.NextRecord();
             }
         }
@@ -132,8 +132,8 @@ public sealed class ExportadorContasPagar : IExportadorContasPagar
                         table.Cell().Border(1).Padding(2).Text(c.CentroCusto?.Nome ?? "");
                         table.Cell().Border(1).Padding(2).Text(c.Vencimento.ToString("dd/MM/yyyy"));
                         table.Cell().Border(1).Padding(2).Text(c.ValorFinal.ToString("C", CultureInfo.GetCultureInfo("pt-BR")));
-                        table.Cell().Border(1).Padding(2).Text(RotuloStatusFinanceiro(c.StatusFinanceiro));
-                        table.Cell().Border(1).Padding(2).Text(RotuloStatusAprovacao(c.StatusAprovacao));
+                        table.Cell().Border(1).Padding(2).Text(c.StatusFinanceiro.Rotulo());
+                        table.Cell().Border(1).Padding(2).Text(c.StatusAprovacao.Rotulo());
                     }
                 });
 
@@ -147,26 +147,4 @@ public sealed class ExportadorContasPagar : IExportadorContasPagar
 
         return documento.GeneratePdf();
     }
-
-    private static string RotuloStatusFinanceiro(StatusFinanceiro status) => status switch
-    {
-        StatusFinanceiro.Agendada => "Agendada",
-        StatusFinanceiro.EmAberto => "Em aberto",
-        StatusFinanceiro.AVencer => "A vencer",
-        StatusFinanceiro.Vencida => "Vencida",
-        StatusFinanceiro.Paga => "Paga",
-        StatusFinanceiro.Cancelada => "Cancelada",
-        StatusFinanceiro.PagamentoNaoIdentificado => "Pagamento não identificado",
-        StatusFinanceiro.PagamentoRecusadoEstornado => "Pagamento recusado/estornado",
-        _ => status.ToString(),
-    };
-
-    private static string RotuloStatusAprovacao(StatusAprovacao status) => status switch
-    {
-        StatusAprovacao.Cadastrada => "Cadastrada",
-        StatusAprovacao.AguardandoAprovacao => "Aguardando aprovação",
-        StatusAprovacao.Aprovada => "Aprovada",
-        StatusAprovacao.Rejeitada => "Rejeitada",
-        _ => status.ToString(),
-    };
 }

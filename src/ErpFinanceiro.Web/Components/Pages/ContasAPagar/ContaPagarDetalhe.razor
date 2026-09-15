@@ -4,7 +4,6 @@
 @rendermode InteractiveServer
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
-@using ErpFinanceiro.Application.Cartoes
 @using ErpFinanceiro.Application.Categorias
 @using ErpFinanceiro.Application.ContasAPagar
 @using ErpFinanceiro.Application.Fornecedores
@@ -16,10 +15,6 @@
 @inject IGerenciadorCadastroSimples<Categoria> GerenciadorCategorias
 @inject IGerenciadorCadastroSimples<CentroCusto> GerenciadorCentrosCusto
 @inject IGerenciadorCadastroSimples<FormaPagamento> GerenciadorFormasPagamento
-@inject IGerenciadorContasBancariasEmpresa GerenciadorContasBancarias
-@inject IGerenciadorCartoes GerenciadorCartoes
-@inject IFluxoAprovacao FluxoAprovacao
-@inject IGerenciadorPagamentos GerenciadorPagamentos
 @inject ErpFinanceiro.Application.Auditoria.ITimelineConsulta TimelineConsulta
 @inject UserManager<Usuario> UserManager
 @inject NavigationManager NavigationManager
@@ -122,11 +117,22 @@ else if (carregado)
                     <div class="alert alert-danger">@erro</div>
                 }
 
-                <button type="submit" class="btn btn-primary">Salvar</button>
+                <AuthorizeView Roles="Financeiro,Administrador" Context="autorizacaoSalvar">
+                    <Authorized>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </Authorized>
+                    <NotAuthorized>
+                        <span class="text-muted">Só usuários com perfil Financeiro ou Administrador podem cadastrar/editar contas a pagar — modo somente leitura.</span>
+                    </NotAuthorized>
+                </AuthorizeView>
                 <button type="button" class="btn btn-link" @onclick="Voltar">Voltar</button>
                 @if (!EhNovo)
                 {
-                    <button type="button" class="btn btn-outline-danger float-end" @onclick="PedirConfirmacaoExclusao">Excluir</button>
+                    <AuthorizeView Roles="Financeiro,Administrador" Context="autorizacaoExcluir">
+                        <Authorized>
+                            <button type="button" class="btn btn-outline-danger float-end" @onclick="PedirConfirmacaoExclusao">Excluir</button>
+                        </Authorized>
+                    </AuthorizeView>
                 }
             </EditForm>
         </div>
@@ -135,134 +141,14 @@ else if (carregado)
 
 @if (!EhNovo && conta is not null)
 {
-    <div class="card mt-3" style="max-width: 42rem;">
-        <div class="card-body">
-            <h3>Aprovação</h3>
-            <p>
-                Status: <span class="badge bg-info text-dark">@conta.StatusAprovacao</span>
-                — Financeiro: <span class="badge bg-secondary">@conta.StatusFinanceiro</span>
-            </p>
-
-            @if (!string.IsNullOrEmpty(conta.MotivoCancelamentoRejeicao))
-            {
-                <div class="alert alert-warning">Motivo da rejeição: @conta.MotivoCancelamentoRejeicao</div>
-            }
-
-            <AuthorizeView Roles="Gestor,Administrador">
-                <Authorized>
-                    @if (conta.StatusAprovacao is StatusAprovacao.Cadastrada or StatusAprovacao.AguardandoAprovacao)
-                    {
-                        @if (!string.IsNullOrEmpty(erroAprovacao))
-                        {
-                            <div class="alert alert-danger">@erroAprovacao</div>
-                        }
-                        <button class="btn btn-success" @onclick="AprovarAsync">Aprovar</button>
-                        <button class="btn btn-outline-danger" @onclick="() => formularioRejeicaoAberto = true">Rejeitar</button>
-
-                        @if (formularioRejeicaoAberto)
-                        {
-                            <div class="mt-2">
-                                <label class="form-label">Motivo da rejeição</label>
-                                <textarea class="form-control mb-2" @bind="motivoRejeicao"></textarea>
-                                <button class="btn btn-danger btn-sm" @onclick="RejeitarAsync">Confirmar rejeição</button>
-                                <button class="btn btn-link btn-sm" @onclick="() => formularioRejeicaoAberto = false">Cancelar</button>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <p class="text-muted">Nenhuma ação de aprovação pendente.</p>
-                    }
-                </Authorized>
-                <NotAuthorized>
-                    <p class="text-muted">Só Gestor ou Administrador podem aprovar/rejeitar contas.</p>
-                </NotAuthorized>
-            </AuthorizeView>
-        </div>
-    </div>
+    <PainelAprovacao Conta="conta" OnAlterado="RecarregarContaAsync" />
 
     @if (conta.StatusAprovacao == StatusAprovacao.Aprovada)
     {
-        <div class="card mt-3" style="max-width: 42rem;">
-            <div class="card-body">
-                <h3>Pagamentos</h3>
-                <table class="table table-sm">
-                    <thead>
-                        <tr><th>Data</th><th>Valor</th><th>Origem</th><th>Status</th><th></th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var p in pagamentos)
-                        {
-                            <tr>
-                                <td>@p.Data.ToString("dd/MM/yyyy")</td>
-                                <td>@p.ValorPago.ToString("C")</td>
-                                <td>@(p.ContaBancariaEmpresa?.Apelido ?? p.Cartao?.Apelido)</td>
-                                <td>@p.Status</td>
-                                <td>
-                                    @if (p.Status == StatusPagamento.Confirmado)
-                                    {
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => PedirConfirmacaoEstorno(p)">Estornar</button>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                        @if (pagamentos.Count == 0)
-                        {
-                            <tr><td colspan="5" class="text-center text-muted">Nenhum pagamento registrado.</td></tr>
-                        }
-                    </tbody>
-                </table>
-
-                <p><strong>Total pago:</strong> @pagamentos.Where(p => p.Status == StatusPagamento.Confirmado).Sum(p => p.ValorPago).ToString("C")
-                    de @conta.ValorFinal.ToString("C")</p>
-
-                @if (!formularioPagamentoAberto)
-                {
-                    <button class="btn btn-outline-primary" @onclick="() => formularioPagamentoAberto = true">+ Registrar pagamento</button>
-                }
-                else
-                {
-                    <div class="border rounded p-3">
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-4">
-                                <label class="form-label">Data</label>
-                                <input type="date" class="form-control" @bind="modeloPagamento.Data" />
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Valor pago</label>
-                                <input type="number" step="any" class="form-control" @bind="modeloPagamento.ValorPago" />
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Origem</label>
-                                <select class="form-select" @bind="modeloPagamento.OrigemId">
-                                    <option value="">—</option>
-                                    @foreach (var cb in contasBancarias)
-                                    {
-                                        <option value="conta:@cb.Id">Conta: @cb.Apelido</option>
-                                    }
-                                    @foreach (var ct in cartoes)
-                                    {
-                                        <option value="cartao:@ct.Id">Cartão: @ct.Apelido</option>
-                                    }
-                                </select>
-                            </div>
-                        </div>
-                        @if (!string.IsNullOrEmpty(erroPagamento))
-                        {
-                            <div class="alert alert-danger">@erroPagamento</div>
-                        }
-                        <button class="btn btn-primary btn-sm" @onclick="RegistrarPagamentoAsync">Salvar pagamento</button>
-                        <button class="btn btn-link btn-sm" @onclick="() => formularioPagamentoAberto = false">Cancelar</button>
-                    </div>
-                }
-            </div>
-        </div>
+        <PainelPagamentos Conta="conta" OnAlterado="RecarregarContaAsync" />
     }
 
-    @if (conta is not null)
-    {
-        <PainelAnexos EntidadeTipo="EntidadeAnexo.ContaPagar" EntidadeId="conta.Id" />
-    }
+    <PainelAnexos EntidadeTipo="EntidadeAnexo.ContaPagar" EntidadeId="conta.Id" />
 
     <div class="card mt-3" style="max-width: 42rem;">
         <div class="card-body">
@@ -283,29 +169,6 @@ else if (carregado)
                     }
                 </ul>
             }
-        </div>
-    </div>
-}
-
-@if (confirmacaoEstornoVisivel)
-{
-    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Estornar pagamento</h5></div>
-                <div class="modal-body">
-                    <p>Informe o motivo do estorno:</p>
-                    <textarea class="form-control" @bind="motivoEstorno"></textarea>
-                    @if (!string.IsNullOrEmpty(erroEstorno))
-                    {
-                        <div class="alert alert-danger mt-2">@erroEstorno</div>
-                    }
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="() => confirmacaoEstornoVisivel = false">Cancelar</button>
-                    <button class="btn btn-danger" @onclick="ConfirmarEstornoAsync">Confirmar estorno</button>
-                </div>
-            </div>
         </div>
     </div>
 }
@@ -345,23 +208,7 @@ else if (carregado)
     private bool confirmacaoEdicaoVisivel;
     private bool confirmacaoExclusaoVisivel;
 
-    private List<ContaBancariaEmpresa> contasBancarias = new();
-    private List<Cartao> cartoes = new();
-    private List<Pagamento> pagamentos = new();
     private List<ErpFinanceiro.Application.Auditoria.EventoTimeline> timeline = new();
-
-    private string? erroAprovacao;
-    private bool formularioRejeicaoAberto;
-    private string motivoRejeicao = "";
-
-    private bool formularioPagamentoAberto;
-    private string? erroPagamento;
-    private FormularioPagamentoModelo modeloPagamento = new();
-
-    private bool confirmacaoEstornoVisivel;
-    private string motivoEstorno = "";
-    private string? erroEstorno;
-    private Pagamento? pagamentoParaEstornar;
 
     private decimal ValorFinalPrevisto => ErpFinanceiro.Application.ContasAPagar.CalculadoraValorFinal.Calcular(
         modelo.ValorOriginal, modelo.Desconto, modelo.Juros, modelo.Multa);
@@ -372,6 +219,16 @@ else if (carregado)
         var usuario = await UserManager.GetUserAsync(authState.User);
         usuarioId = usuario?.Id ?? Guid.Empty;
 
+        // Sequencial de propósito: todos os Gerenciadores abaixo compartilham
+        // a mesma instância de AppDbContext (escopo do circuito Blazor
+        // Server) — EF Core não suporta operações concorrentes na mesma
+        // instância de DbContext, então rodar essas consultas em paralelo
+        // (via Task.WhenAll) derruba com "A second operation was started on
+        // this context instance before a previous operation completed."
+        // Só descobri isso testando de verdade — reverte uma tentativa
+        // anterior de otimização que parecia razoável no código mas quebrava
+        // a aplicação (achado da auditoria: sempre testar mudança de
+        // paralelismo contra DbContext scoped, não só compilar).
         fornecedores = (await GerenciadorFornecedores.ListarAsync()).ToList();
         categorias = (await GerenciadorCategorias.ListarAsync(apenasAtivos: true)).ToList();
         centrosCusto = (await GerenciadorCentrosCusto.ListarAsync(apenasAtivos: true)).ToList();
@@ -380,8 +237,6 @@ else if (carregado)
         if (!EhNovo)
         {
             await RecarregarContaAsync();
-            contasBancarias = (await GerenciadorContasBancarias.ListarAsync(apenasAtivas: true)).ToList();
-            cartoes = (await GerenciadorCartoes.ListarAsync()).ToList();
         }
 
         carregado = true;
@@ -389,92 +244,30 @@ else if (carregado)
 
     private async Task RecarregarContaAsync()
     {
-        conta = await Gerenciador.ObterAsync(Id!.Value);
-        if (conta is not null)
+        // Só atribui aos campos (conta, timeline...) depois que TODAS as
+        // consultas abaixo já terminaram — nunca no meio do método. Esse
+        // método é chamado via OnAlterado a partir de PainelAprovacao/
+        // PainelPagamentos (EventCallback); o Blazor re-renderiza o pai a
+        // cada await que retorna dentro de um handler assim, e reatribuir
+        // `conta` cedo demais (antes do timeline terminar) faz esse
+        // re-render intermediário avaliar `@if (conta.StatusAprovacao ==
+        // Aprovada)` como recém-verdadeiro e montar um PainelPagamentos
+        // novo — cujo OnInitializedAsync dispara consultas na MESMA
+        // instância de AppDbContext que este método ainda não tinha
+        // terminado de usar. Resultado: "A second operation was started on
+        // this context instance" (descoberto testando de verdade o fluxo
+        // completo aprovar → pagar → estornar, não só compilando).
+        var novaConta = await Gerenciador.ObterAsync(Id!.Value);
+        if (novaConta is not null)
         {
-            modelo = ModeloDe(conta);
-            valoresOriginaisCarregados = ModeloDe(conta);
-            pagamentos = (await GerenciadorPagamentos.ListarPorContaAsync(conta.Id)).ToList();
-            timeline = (await TimelineConsulta.ObterAsync(nameof(ContaPagar), conta.Id)).ToList();
+            var novoModelo = ModeloDe(novaConta);
+            var novaTimeline = (await TimelineConsulta.ObterAsync(nameof(ContaPagar), novaConta.Id)).ToList();
+
+            conta = novaConta;
+            modelo = novoModelo;
+            valoresOriginaisCarregados = novoModelo;
+            timeline = novaTimeline;
         }
-    }
-
-    private async Task AprovarAsync()
-    {
-        erroAprovacao = null;
-        var resultado = await FluxoAprovacao.AprovarAsync(Id!.Value, usuarioId);
-        if (!resultado.Sucesso)
-        {
-            erroAprovacao = string.Join("; ", resultado.Erros);
-            return;
-        }
-
-        await RecarregarContaAsync();
-    }
-
-    private async Task RejeitarAsync()
-    {
-        erroAprovacao = null;
-        var resultado = await FluxoAprovacao.RejeitarAsync(Id!.Value, usuarioId, motivoRejeicao);
-        if (!resultado.Sucesso)
-        {
-            erroAprovacao = string.Join("; ", resultado.Erros);
-            return;
-        }
-
-        formularioRejeicaoAberto = false;
-        motivoRejeicao = "";
-        await RecarregarContaAsync();
-    }
-
-    private async Task RegistrarPagamentoAsync()
-    {
-        erroPagamento = null;
-        if (string.IsNullOrWhiteSpace(modeloPagamento.OrigemId))
-        {
-            erroPagamento = "Selecione a conta bancária ou o cartão de origem.";
-            return;
-        }
-
-        var partes = modeloPagamento.OrigemId.Split(':');
-        Guid? contaBancariaId = partes[0] == "conta" ? Guid.Parse(partes[1]) : null;
-        Guid? cartaoId = partes[0] == "cartao" ? Guid.Parse(partes[1]) : null;
-
-        var input = new RegistrarPagamentoInput(
-            DateOnly.FromDateTime(modeloPagamento.Data), modeloPagamento.ValorPago, null, contaBancariaId, cartaoId);
-
-        var resultado = await GerenciadorPagamentos.RegistrarAsync(Id!.Value, input, usuarioId);
-        if (!resultado.Sucesso)
-        {
-            erroPagamento = string.Join("; ", resultado.Erros);
-            return;
-        }
-
-        formularioPagamentoAberto = false;
-        modeloPagamento = new FormularioPagamentoModelo();
-        await RecarregarContaAsync();
-    }
-
-    private void PedirConfirmacaoEstorno(Pagamento p)
-    {
-        pagamentoParaEstornar = p;
-        motivoEstorno = "";
-        erroEstorno = null;
-        confirmacaoEstornoVisivel = true;
-    }
-
-    private async Task ConfirmarEstornoAsync()
-    {
-        erroEstorno = null;
-        var resultado = await GerenciadorPagamentos.EstornarAsync(pagamentoParaEstornar!.Id, motivoEstorno, usuarioId);
-        if (!resultado.Sucesso)
-        {
-            erroEstorno = string.Join("; ", resultado.Erros);
-            return;
-        }
-
-        confirmacaoEstornoVisivel = false;
-        await RecarregarContaAsync();
     }
 
     private static FormularioModelo ModeloDe(ContaPagar c) => new()
@@ -592,12 +385,5 @@ else if (carregado)
         public decimal Multa { get; set; }
 
         public string FormaPagamentoId { get; set; } = "";
-    }
-
-    private sealed class FormularioPagamentoModelo
-    {
-        public DateTime Data { get; set; } = DateTime.Today;
-        public decimal ValorPago { get; set; }
-        public string OrigemId { get; set; } = "";
     }
 }

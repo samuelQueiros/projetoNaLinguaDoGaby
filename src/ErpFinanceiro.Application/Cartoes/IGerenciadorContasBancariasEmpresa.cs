@@ -9,13 +9,13 @@ namespace ErpFinanceiro.Application.Cartoes;
 /// </summary>
 public interface IGerenciadorContasBancariasEmpresa
 {
-    Task<ContaBancariaEmpresa> CriarAsync(ContaBancariaEmpresaInput input);
+    Task<ContaBancariaEmpresa> CriarAsync(ContaBancariaEmpresaInput input, Guid usuarioId);
 
-    Task<ResultadoOperacao> EditarAsync(Guid id, ContaBancariaEmpresaInput input);
+    Task<ResultadoOperacao> EditarAsync(Guid id, ContaBancariaEmpresaInput input, Guid usuarioId);
 
-    Task<ResultadoOperacao> InativarAsync(Guid id);
+    Task<ResultadoOperacao> InativarAsync(Guid id, Guid usuarioId);
 
-    Task<ResultadoOperacao> ReativarAsync(Guid id);
+    Task<ResultadoOperacao> ReativarAsync(Guid id, Guid usuarioId);
 
     Task<IReadOnlyList<ContaBancariaEmpresa>> ListarAsync(bool apenasAtivas = false);
 }

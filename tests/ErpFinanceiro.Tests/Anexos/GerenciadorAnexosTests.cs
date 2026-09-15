@@ -5,6 +5,7 @@ using ErpFinanceiro.Infrastructure.Anexos;
 using ErpFinanceiro.Infrastructure.Data;
 using ErpFinanceiro.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ErpFinanceiro.Tests.Anexos;
 
@@ -19,7 +20,7 @@ public class GerenciadorAnexosTests
 
         var storage = new ArmazenamentoAnexosFalso();
         var auditoria = new RegistradorAuditoriaFalso();
-        return (new GerenciadorAnexos(db, storage, auditoria), storage, auditoria, db, usuario.Id);
+        return (new GerenciadorAnexos(db, storage, auditoria, NullLogger<GerenciadorAnexos>.Instance), storage, auditoria, db, usuario.Id);
     }
 
     private static NovoAnexo Novo(Guid entidadeId, string nome = "nota.pdf", string texto = "conteudo") =>
@@ -94,5 +95,24 @@ public class GerenciadorAnexosTests
         var resultado = await gerenciador.ExcluirAsync(Guid.NewGuid(), usuarioId);
 
         Assert.False(resultado.Sucesso);
+    }
+
+    [Fact]
+    public async Task ExcluirAsync_quando_delete_fisico_falha_mantem_o_registro_no_banco()
+    {
+        // O arquivo físico é apagado ANTES do registro no banco — se o
+        // delete físico falhar, a operação inteira falha e nada muda,
+        // em vez de deixar um arquivo órfão em disco sem que ninguém
+        // perceba (achado da auditoria de qualidade).
+        var (gerenciador, storage, auditoria, db, usuarioId) = await CriarAsync();
+        var anexo = await gerenciador.AnexarAsync(Novo(Guid.NewGuid()), usuarioId);
+        auditoria.Chamadas.Clear();
+        storage.FalharAoExcluir = true;
+
+        var resultado = await gerenciador.ExcluirAsync(anexo.Id, usuarioId);
+
+        Assert.False(resultado.Sucesso);
+        Assert.Equal(1, await db.Anexos.CountAsync());
+        Assert.Empty(auditoria.Chamadas);
     }
 }

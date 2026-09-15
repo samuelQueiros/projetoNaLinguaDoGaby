@@ -4,6 +4,8 @@ using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.Boletos;
 using ErpFinanceiro.Application.Cartoes;
 using ErpFinanceiro.Application.Categorias;
+using ErpFinanceiro.Application.ChatIa;
+using ErpFinanceiro.Application.ConfiguracoesIa;
 using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Application.Dashboard;
 using ErpFinanceiro.Application.DocumentosIa;
@@ -18,6 +20,8 @@ using ErpFinanceiro.Infrastructure.Auditoria;
 using ErpFinanceiro.Infrastructure.Boletos;
 using ErpFinanceiro.Infrastructure.Cartoes;
 using ErpFinanceiro.Infrastructure.Categorias;
+using ErpFinanceiro.Infrastructure.ChatIa;
+using ErpFinanceiro.Infrastructure.ConfiguracoesIa;
 using ErpFinanceiro.Infrastructure.ContasAPagar;
 using ErpFinanceiro.Infrastructure.Dashboard;
 using ErpFinanceiro.Infrastructure.Data;
@@ -141,6 +145,11 @@ builder.Services.AddScoped<IGerenciadorNotasFiscais, GerenciadorNotasFiscais>();
 builder.Services.AddScoped<IGerenciadorBoletos, GerenciadorBoletos>();
 builder.Services.AddScoped<IExportadorContasPagar, ExportadorContasPagar>();
 
+// Configuração de IA (provedor/modelo/chave), editável pelo Administrador
+// em /configuracoes-ia — Scoped de propósito, nunca cacheada, pra trocar
+// valer na próxima chamada sem reiniciar o app.
+builder.Services.AddHttpClient<IGerenciadorConfiguracaoIa, GerenciadorConfiguracaoIa>();
+
 // Módulo de IA para documentos (docs/modulo-ia-documentos.md). Fila
 // in-process + worker; leitor trocável por configuração (Stub | Http).
 builder.Services.AddSingleton<IFilaProcessamentoDocumentos, FilaProcessamentoDocumentos>();
@@ -154,12 +163,29 @@ if (string.Equals(builder.Configuration["Ia:Leitor:Modo"], "Http", StringCompari
         client.BaseAddress = new Uri(builder.Configuration["Ia:Leitor:BaseUrl"] ?? "http://localhost:8000");
         client.Timeout = TimeSpan.FromSeconds(
             int.TryParse(builder.Configuration["Ia:Leitor:TimeoutSegundos"], out var segundos) ? segundos : 120);
+
+        // Mesmo segredo do INTERNAL_TOKEN do serviço Python (.env de lá) —
+        // sem isso configurado dos dois lados, /extrair fica aberto pra
+        // qualquer host que alcance a porta (achado da auditoria de
+        // segurança). Vazio nos dois = checagem desativada (padrão em dev).
+        var tokenInterno = builder.Configuration["Ia:Leitor:TokenInterno"];
+        if (!string.IsNullOrWhiteSpace(tokenInterno))
+        {
+            client.DefaultRequestHeaders.Add("X-Internal-Token", tokenInterno);
+        }
     });
 }
 else
 {
     builder.Services.AddSingleton<ILeitorDocumentos, LeitorDocumentosStub>();
 }
+
+// Agente de chat — catálogo fixo de ferramentas somente-leitura (ver
+// CatalogoFerramentasChatIa), provedor escolhido a cada chamada via
+// ConfiguracaoIa (finalidade Chat). Hoje só Gemini tem adapter.
+builder.Services.AddScoped<ExecutorFerramentasChatIa>();
+builder.Services.AddHttpClient<AgenteChatIaGemini>();
+builder.Services.AddScoped<IAgenteChatIa, AgenteChatIaFactory>();
 
 // Licença Community do QuestPDF (uso gratuito para empresas pequenas/OSS —
 // exigido pela biblioteca desde a v2023, sem isso ela lança exceção em
@@ -202,12 +228,25 @@ app.MapGet("/anexos/{id:guid}", async (Guid id, IGerenciadorAnexos gerenciador) 
 // Documentos). Mesmo motivo dos anexos: download binário não sai de um
 // componente Blazor Server.
 app.MapGet("/documentos-importados/{id:guid}/arquivo",
-    async (Guid id, IGerenciadorDocumentosImportados gerenciador, IArmazenamentoAnexos storage) =>
+    async (Guid id, System.Security.Claims.ClaimsPrincipal principal, IGerenciadorDocumentosImportados gerenciador,
+        IArmazenamentoAnexos storage, Microsoft.AspNetCore.Identity.UserManager<Usuario> userManager) =>
     {
         var documento = await gerenciador.ObterAsync(id);
         if (documento is null)
         {
             return Results.NotFound();
+        }
+
+        // Antes da revisão, o documento importado (comprovante/contrato/nota
+        // ainda não virou anexo "oficial") só é visível pra quem enviou ou
+        // pra Administrador — mesma restrição aplicada em CentralDocumentos.razor
+        // (achado da auditoria de segurança: endpoint expunha qualquer
+        // documento de qualquer usuário pra qualquer usuário autenticado).
+        var usuario = await userManager.GetUserAsync(principal);
+        var ehAdministrador = usuario is not null && await userManager.IsInRoleAsync(usuario, nameof(PerfilUsuario.Administrador));
+        if (usuario is null || (!ehAdministrador && documento.EnviadoPorId != usuario.Id))
+        {
+            return Results.Forbid();
         }
 
         var conteudo = await storage.AbrirAsync(documento.CaminhoArmazenamento);

@@ -26,3 +26,9 @@ public sealed record RevisaoDocumentoInput(
 public sealed record FiltroDocumentosImportados(
     StatusImportacaoDocumento? Status = null,
     Guid? EnviadoPorId = null);
+
+public sealed record FalhaEnvioDocumento(string NomeArquivo, string Motivo);
+
+public sealed record ResultadoEnvioDocumentos(
+    IReadOnlyList<DocumentoImportado> Criados,
+    IReadOnlyList<FalhaEnvioDocumento> Falhas);

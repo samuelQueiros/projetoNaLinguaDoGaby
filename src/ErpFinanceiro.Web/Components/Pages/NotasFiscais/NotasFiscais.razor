@@ -48,6 +48,7 @@
 else
 {
     <p class="text-muted">@notas.Count nota(s) — total R$ @notas.Sum(n => n.Valor).ToString("N2")</p>
+    <div class="tabela-cartao">
     <table class="table table-striped align-middle">
         <thead>
             <tr><th>Número</th><th>Série</th><th>Fornecedor</th><th>Emissão</th><th class="text-end">Valor</th><th></th></tr>
@@ -73,6 +74,7 @@ else
             }
         </tbody>
     </table>
+    </div>
 }
 
 @if (formularioAberto)

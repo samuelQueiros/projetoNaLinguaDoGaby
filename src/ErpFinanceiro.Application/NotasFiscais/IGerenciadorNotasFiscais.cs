@@ -25,6 +25,10 @@ public sealed record FiltroNotasFiscais(
     int? Ano = null,
     Guid? ContaPagarId = null);
 
+/// <summary>
+/// Casos de uso de Nota Fiscal (seção 7 do escopo). Exclusão sempre
+/// lógica — mesma convenção de ContaPagar/Fornecedor/Boleto.
+/// </summary>
 public interface IGerenciadorNotasFiscais
 {
     Task<ResultadoCriacao<NotaFiscal>> CriarAsync(NotaFiscalInput input, Guid usuarioId);

@@ -1,9 +1,9 @@
 @page "/usuarios"
 @attribute [Authorize(Roles = "Administrador")]
+@using ErpFinanceiro.Application.Usuarios
 @using ErpFinanceiro.Domain
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Identity
-@inject UserManager<Usuario> UserManager
+@inject IGerenciadorUsuarios Gerenciador
 
 <PageTitle>Usuários</PageTitle>
 
@@ -21,6 +21,7 @@
 }
 else
 {
+    <div class="tabela-cartao">
     <table class="table">
         <thead>
             <tr>
@@ -44,20 +45,14 @@ else
             }
         </tbody>
     </table>
+    </div>
 }
 
 @code {
-    private List<(Usuario Usuario, IList<string> Papeis)>? usuarios;
+    private IReadOnlyList<(Usuario Usuario, IReadOnlyList<string> Papeis)>? usuarios;
 
     protected override async Task OnInitializedAsync()
     {
-        var lista = new List<(Usuario, IList<string>)>();
-        foreach (var usuario in UserManager.Users.ToList())
-        {
-            var papeis = await UserManager.GetRolesAsync(usuario);
-            lista.Add((usuario, papeis));
-        }
-
-        usuarios = lista;
+        usuarios = await Gerenciador.ListarComPapeisAsync();
     }
 }

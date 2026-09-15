@@ -1,0 +1,110 @@
+@* Painel de aprovação/rejeição de uma conta a pagar — extraído de
+   ContaPagarDetalhe.razor (603+ linhas antes da divisão) pra reduzir o
+   @code principal a orquestração + CRUD da conta em si, mesmo espírito de
+   PainelAnexos.razor (achado da auditoria de qualidade). *@
+@using System.Security.Claims
+@using ErpFinanceiro.Application.ContasAPagar
+@using ErpFinanceiro.Domain
+@using Microsoft.AspNetCore.Identity
+@inject IFluxoAprovacao FluxoAprovacao
+@inject UserManager<Usuario> UserManager
+
+<div class="card mt-3" style="max-width: 42rem;">
+    <div class="card-body">
+        <h3>Aprovação</h3>
+        <p>
+            Status: <span class="pill @Conta.StatusAprovacao.Pill()">@Conta.StatusAprovacao.Rotulo()</span>
+            — Financeiro: <span class="pill @Conta.StatusFinanceiro.Pill()">@Conta.StatusFinanceiro.Rotulo()</span>
+        </p>
+
+        @if (!string.IsNullOrEmpty(Conta.MotivoCancelamentoRejeicao))
+        {
+            <div class="alert alert-warning">Motivo da rejeição: @Conta.MotivoCancelamentoRejeicao</div>
+        }
+
+        <AuthorizeView Roles="Gestor,Administrador">
+            <Authorized>
+                @if (Conta.StatusAprovacao is StatusAprovacao.Cadastrada or StatusAprovacao.AguardandoAprovacao)
+                {
+                    @if (!string.IsNullOrEmpty(erro))
+                    {
+                        <div class="alert alert-danger">@erro</div>
+                    }
+                    <button class="btn btn-success" @onclick="AprovarAsync">Aprovar</button>
+                    <button class="btn btn-outline-danger" @onclick="() => formularioRejeicaoAberto = true">Rejeitar</button>
+
+                    @if (formularioRejeicaoAberto)
+                    {
+                        <div class="mt-2">
+                            <label class="form-label">Motivo da rejeição</label>
+                            <textarea class="form-control mb-2" @bind="motivoRejeicao"></textarea>
+                            <button class="btn btn-danger btn-sm" @onclick="RejeitarAsync">Confirmar rejeição</button>
+                            <button class="btn btn-link btn-sm" @onclick="() => formularioRejeicaoAberto = false">Cancelar</button>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="text-muted">Nenhuma ação de aprovação pendente.</p>
+                }
+            </Authorized>
+            <NotAuthorized>
+                <p class="text-muted">Só Gestor ou Administrador podem aprovar/rejeitar contas.</p>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ContaPagar Conta { get; set; } = null!;
+
+    /// <summary>Avisa o pai pra recarregar a conta — Aprovar/Rejeitar muda
+    /// StatusAprovacao, que a própria conta (não este componente) é quem
+    /// exibe em outros lugares da tela.</summary>
+    [Parameter]
+    public EventCallback OnAlterado { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private Guid usuarioId;
+    private string? erro;
+    private bool formularioRejeicaoAberto;
+    private string motivoRejeicao = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await (AuthState ?? Task.FromResult(new AuthenticationState(new ClaimsPrincipal())));
+        var usuario = await UserManager.GetUserAsync(authState.User);
+        usuarioId = usuario?.Id ?? Guid.Empty;
+    }
+
+    private async Task AprovarAsync()
+    {
+        erro = null;
+        var resultado = await FluxoAprovacao.AprovarAsync(Conta.Id, usuarioId);
+        if (!resultado.Sucesso)
+        {
+            erro = string.Join("; ", resultado.Erros);
+            return;
+        }
+
+        await OnAlterado.InvokeAsync();
+    }
+
+    private async Task RejeitarAsync()
+    {
+        erro = null;
+        var resultado = await FluxoAprovacao.RejeitarAsync(Conta.Id, usuarioId, motivoRejeicao);
+        if (!resultado.Sucesso)
+        {
+            erro = string.Join("; ", resultado.Erros);
+            return;
+        }
+
+        formularioRejeicaoAberto = false;
+        motivoRejeicao = "";
+        await OnAlterado.InvokeAsync();
+    }
+}

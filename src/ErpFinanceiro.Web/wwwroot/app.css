@@ -1,36 +1,152 @@
 /*
- * Design tokens do "Financeiro ONRTDPJ" — reskin moderno/minimalista por
- * cima do Bootstrap 5 vendorizado (wwwroot/bootstrap/), sem alterar esse
- * arquivo. Paleta inspirada no site institucional de referência: fundo
- * claro, texto em cinza-chumbo (não preto puro), azul primário, acento
- * verde para o detalhe decorativo do topo de página.
+ * Design tokens do "Financeiro ONRTDPJ" — reskin sobre o Bootstrap 5
+ * vendorizado (wwwroot/bootstrap/), sem alterar esse arquivo.
+ *
+ * Modo único: claro, estilo "vidro líquido" (glassmorphism) sobre fundo
+ * branco/cinza-claro — mesma linguagem visual de glass-effect2/ (painéis
+ * translúcidos com backdrop-filter blur, acento azul), só que com o glass
+ * em branco em vez de preto. Sem alternância claro/escuro — um único tema
+ * evita a inconsistência de recarregar em modo diferente do escolhido.
+ *
+ * Acento azul é o azul de marca real da ONRTDPJ (#1c2f8f); verde de marca
+ * (#1fd16a) vira a cor semântica de sucesso — ambos escurecidos um pouco
+ * em relação ao valor "puro" da marca pra manter contraste AA em fundo
+ * branco (ver logo em wwwroot/img/onrtdpj-logo.png, que já é navy-on-white).
  */
 :root {
-    /* Paleta amostrada da logo real da ONRTDPJ (esfera azul/verde + "N"
-       em azul-marinho) — ver wwwroot/img/onrtdpj-*.png. */
     --cor-primaria: #1c2f8f;
-    --cor-primaria-escura: #14226b;
-    --cor-primaria-suave: #eaecfb;
-    --cor-acento: #1fd16a;
-    --cor-texto: #0f1a3d;
-    --cor-texto-suave: #6b7280;
-    --cor-fundo: #f7f8fa;
-    --cor-superficie: #ffffff;
-    --cor-borda: #e5e7eb;
-    --raio-borda: 0.6rem;
-    --raio-borda-sm: 0.4rem;
-    --sombra-cartao: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    --cor-primaria-forte: #142266;
+    --cor-primaria-suave: rgba(28, 47, 143, 0.1);
+    --cor-acento: #16a35a;
+
+    --cor-texto: #121a2e;
+    --cor-texto-suave: rgba(18, 26, 46, 0.62);
+    --cor-texto-fraco: rgba(18, 26, 46, 0.4);
+
+    --cor-fundo: #f2f4f9;
+    --cor-fundo-elevado: #ffffff;
+
+    /* Superfícies "de vidro" — translúcidas, com blur do que está atrás.
+       Em fundo claro isso vira "vidro fosco branco" em vez de "vidro fosco
+       preto": painéis quase-brancos que deixam o glow ambiente passar. */
+    --vidro-bg: rgba(255, 255, 255, 0.72);
+    --vidro-bg-hover: rgba(255, 255, 255, 0.92);
+    --vidro-borda: rgba(18, 26, 46, 0.08);
+    --vidro-borda-topo: rgba(255, 255, 255, 0.9);
+    --vidro-blur: blur(20px) saturate(160%);
+
+    /* Aliases usados nos componentes já existentes (cards, tabelas, inputs). */
+    --cor-superficie: var(--vidro-bg);
+    --cor-superficie-2: rgba(18, 26, 46, 0.04);
+    --cor-borda: var(--vidro-borda);
+
+    --raio-borda: 1.25rem;
+    --raio-borda-sm: 0.75rem;
+    --sombra-cartao: 0 1px 2px rgba(18, 26, 46, 0.04), 0 16px 40px rgba(18, 26, 46, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    --sombra-cartao-hover: 0 2px 6px rgba(18, 26, 46, 0.05), 0 24px 56px rgba(18, 26, 46, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+
+    /* Cores semânticas de status — vermelho/âmbar seguem convenção
+       universal de urgência; verde reaproveita o acento de marca. Todas
+       escurecidas o bastante pra ler como texto em fundo branco (contraste
+       AA), diferente da versão pastel usada quando o fundo era escuro. */
+    --cor-perigo: #c8333d;
+    --cor-perigo-fundo: rgba(200, 51, 61, 0.1);
+    --cor-alerta: #a2650a;
+    --cor-alerta-fundo: rgba(162, 101, 10, 0.12);
+    --cor-sucesso: #16a35a;
+    --cor-sucesso-fundo: rgba(22, 163, 90, 0.1);
+}
+
+html {
+    scroll-behavior: smooth;
 }
 
 html, body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    /* -apple-system/BlinkMacSystemFont primeiro: em Mac/iOS isso já
+       resolve pra SF Pro (a fonte do sistema), sem precisar embutir nada —
+       só cai pro Open Sans em quem não tem a fonte da Apple instalada. */
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Open Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     color: var(--cor-texto);
     background-color: var(--cor-fundo);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+::selection {
+    background-color: rgba(28, 47, 143, 0.18);
+    color: var(--cor-texto);
+}
+
+/* Scrollbar fina, no tom do vidro — combina com o resto do sistema em vez
+   da barra cinza padrão do navegador. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(18, 26, 46, 0.18) transparent;
+}
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(18, 26, 46, 0.18); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--cor-primaria); background-clip: content-box; }
+
+/* Glow ambiente fixo atrás de tudo, bem discreto — só o suficiente pra dar
+   profundidade ao blur dos painéis de vidro sem virar "papel de parede".
+   Sem textura de grão: fundo limpo, sem ruído — não é a linguagem visual
+   que estamos buscando aqui. Respira bem devagar, sem mover posição. */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        radial-gradient(720px circle at 10% -8%, rgba(28, 47, 143, 0.07), transparent 62%),
+        radial-gradient(560px circle at 96% 12%, rgba(22, 163, 90, 0.045), transparent 60%),
+        radial-gradient(820px circle at 20% 108%, rgba(28, 47, 143, 0.04), transparent 62%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    body::before {
+        animation: respiracaoAmbiente 12s ease-in-out infinite;
+    }
+}
+
+@keyframes respiracaoAmbiente {
+    0%, 100% { opacity: 0.9; }
+    50% { opacity: 1; }
+}
+
+@keyframes entradaSuave {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulsarPonto {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(1.35); }
+}
+
+/* Números (valores monetários, datas, contagens) em fonte monoespaçada
+   tabular — facilita comparar valores em coluna, como numa planilha. */
+.num, .valor-monetario {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
 }
 
 h1, h2, h3, h4, h5, h6 {
+    font-family: -apple-system, BlinkMacSystemFont, "Montserrat", "Open Sans", sans-serif;
     color: var(--cor-texto);
-    font-weight: 600;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+}
+
+h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    margin-bottom: 1.5rem;
 }
 
 a, .btn-link {
@@ -38,68 +154,113 @@ a, .btn-link {
 }
 
 .btn {
-    border-radius: var(--raio-borda-sm);
-    font-weight: 500;
+    border-radius: 999px;
+    font-weight: 600;
+    padding: 0.5rem 1.15rem;
+    transition: transform 0.15s cubic-bezier(.4,0,.2,1), box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
+    /* Apple não levita botão no hover — o feedback é opacidade/escurecer;
+       só no clique um leve "encolher" confirma o toque. */
+    .btn:active {
+        transform: scale(0.97);
+    }
+
 .btn-primary {
-    color: #fff;
+    color: #ffffff;
     background-color: var(--cor-primaria);
     border-color: var(--cor-primaria);
+    box-shadow: 0 1px 2px rgba(28, 47, 143, 0.15);
 }
 
     .btn-primary:hover, .btn-primary:focus {
-        background-color: var(--cor-primaria-escura);
-        border-color: var(--cor-primaria-escura);
+        background-color: var(--cor-primaria-forte);
+        border-color: var(--cor-primaria-forte);
+        color: #ffffff;
+        box-shadow: 0 1px 2px rgba(28, 47, 143, 0.2);
     }
 
-.btn-outline-primary {
-    color: var(--cor-primaria);
-    border-color: var(--cor-primaria);
+.btn-outline-primary, .btn-outline-secondary {
+    color: var(--cor-texto);
+    border-color: var(--vidro-borda);
+    background-color: var(--vidro-bg);
 }
 
-    .btn-outline-primary:hover {
-        background-color: var(--cor-primaria);
+    .btn-outline-primary:hover, .btn-outline-secondary:hover {
+        background-color: var(--vidro-bg-hover);
         border-color: var(--cor-primaria);
+        color: var(--cor-texto);
     }
 
+.btn-outline-danger {
+    color: var(--cor-perigo);
+    border-color: rgba(200, 51, 61, 0.4);
+    background-color: transparent;
+}
+
+.btn-outline-success {
+    color: var(--cor-sucesso);
+    border-color: rgba(22, 163, 90, 0.4);
+    background-color: transparent;
+}
+
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus, .form-select:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem var(--cor-primaria-suave);
+  box-shadow: 0 0 0 0.2rem var(--cor-primaria-suave);
   border-color: var(--cor-primaria);
 }
 
 .content {
-    padding-top: 1.1rem;
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
 }
 
 h1:focus {
     outline: none;
 }
 
-/* Cards — cantos mais arredondados e sombra sutil no lugar de borda pesada,
-   consistente com o print de referência (cards de serviço). */
-.card {
-    border: 1px solid var(--cor-borda);
+/* Cards, modais, telas de detalhe: painel de vidro — translúcido, com
+   blur do fundo (glow ambiente) e um fio de luz na borda superior. Hover
+   discreto (só a borda escurece) — sem levitar, porque `.card` também
+   embrulha formulários, e balançar um formulário enquanto o usuário
+   digita seria ruim. */
+.card, .modal-content {
+    background-color: var(--vidro-bg);
+    -webkit-backdrop-filter: var(--vidro-blur);
+    backdrop-filter: var(--vidro-blur);
+    border: 1px solid var(--vidro-borda);
+    border-top-color: var(--vidro-borda-topo);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-cartao);
+    color: var(--cor-texto);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+    .card:hover {
+        border-color: rgba(18, 26, 46, 0.12);
+        box-shadow: var(--sombra-cartao-hover);
+    }
+
+.card-body {
+    padding: 1.35rem 1.5rem;
 }
 
 .card-subtitle {
     font-size: 0.8rem;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.05em;
+    color: var(--cor-texto-suave) !important;
 }
 
 /* Cards de indicador do dashboard — faixa lateral fina em vez de borda
    colorida completa (padrão mais discreto/moderno). */
 .cartao-indicador {
-    border-left-width: 4px;
+    border-left-width: 3px;
     border-left-style: solid;
-    border-left-color: var(--cor-borda);
+    border-left-color: var(--vidro-borda);
 }
 
     .cartao-indicador.cartao-indicador-perigo {
-        border-left-color: #dc3545;
+        border-left-color: var(--cor-perigo);
     }
 
     .cartao-indicador.cartao-indicador-sucesso {
@@ -107,47 +268,84 @@ h1:focus {
     }
 
     .cartao-indicador.cartao-indicador-alerta {
-        border-left-color: #f59e0b;
+        border-left-color: var(--cor-alerta);
     }
 
 .table {
     color: var(--cor-texto);
+    --bs-table-bg: transparent;
+    --bs-table-striped-bg: rgba(18, 26, 46, 0.02);
+    --bs-table-striped-color: var(--cor-texto);
+    --bs-table-hover-bg: rgba(18, 26, 46, 0.04);
+    --bs-table-hover-color: var(--cor-texto);
+    --bs-table-border-color: var(--vidro-borda);
 }
 
+    .table tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
     .table thead th {
-        color: var(--cor-texto-suave);
-        font-size: 0.8rem;
+        color: var(--cor-texto-fraco);
+        font-size: 0.74rem;
         text-transform: uppercase;
-        letter-spacing: 0.03em;
-        font-weight: 600;
-        border-bottom-width: 1px;
+        letter-spacing: 0.05em;
+        font-weight: 700;
+        border-bottom: none;
+        box-shadow: inset 0 -1px 0 rgba(18, 26, 46, 0.08);
     }
 
 .badge {
-    font-weight: 500;
-    border-radius: var(--raio-borda-sm);
-}
-
-.modal-content {
-    border-radius: var(--raio-borda);
-    border: none;
+    font-weight: 600;
+    border-radius: 999px;
 }
 
 .form-control, .form-select {
     border-radius: var(--raio-borda-sm);
-    border-color: var(--cor-borda);
+    border-color: var(--vidro-borda);
+    background-color: #ffffff;
+    color: var(--cor-texto);
+}
+
+    .form-control::placeholder {
+        color: var(--cor-texto-fraco);
+    }
+
+    .form-control:focus, .form-select:focus {
+        background-color: #ffffff;
+        color: var(--cor-texto);
+    }
+
+    .form-select {
+        --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23121a2e' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+    }
+
+.form-label {
+    color: var(--cor-texto-suave);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.text-muted {
+    color: var(--cor-texto-fraco) !important;
 }
 
 .valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+    outline: 1px solid var(--cor-sucesso);
 }
 
 .invalid {
-    outline: 1px solid #e50000;
+    outline: 1px solid var(--cor-perigo);
 }
 
 .validation-message {
-    color: #e50000;
+    color: var(--cor-perigo);
+}
+
+.alert-danger {
+    background-color: var(--cor-perigo-fundo);
+    border-color: rgba(200, 51, 61, 0.3);
+    color: var(--cor-perigo);
 }
 
 .blazor-error-boundary {
@@ -161,5 +359,354 @@ h1:focus {
     }
 
 .darker-border-checkbox.form-check-input {
-    border-color: #929292;
+    border-color: rgba(18, 26, 46, 0.3);
+}
+
+/* ===================== Menu — cabeçalhos de grupo ===================== */
+.nav-grupo-titulo {
+    font-family: "Montserrat", sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--cor-texto-fraco);
+    padding: 0.9rem 0.9rem 0.2rem;
+}
+
+.nav-grupo:first-of-type .nav-grupo-titulo {
+    padding-top: 0.4rem;
+}
+
+/* ===================== Pills de status ===================== */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.16rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.pill-perigo { background-color: var(--cor-perigo-fundo); color: var(--cor-perigo); border-color: rgba(200, 51, 61, 0.22); }
+.pill-alerta { background-color: var(--cor-alerta-fundo); color: var(--cor-alerta); border-color: rgba(162, 101, 10, 0.22); }
+.pill-sucesso { background-color: var(--cor-sucesso-fundo); color: var(--cor-sucesso); border-color: rgba(22, 163, 90, 0.22); }
+.pill-neutra { background-color: var(--cor-superficie-2); color: var(--cor-texto-suave); border-color: var(--vidro-borda); }
+
+/* ===================== Painel "precisa de atenção" (dashboard) ===================== */
+.atencao-grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.atencao-cartao {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--vidro-bg);
+    -webkit-backdrop-filter: var(--vidro-blur);
+    backdrop-filter: var(--vidro-blur);
+    border: 1px solid var(--vidro-borda);
+    border-left-width: 3px;
+    border-radius: var(--raio-borda);
+    box-shadow: var(--sombra-cartao);
+    padding: 1.1rem 1.25rem;
+    transition: transform 0.3s cubic-bezier(.4,0,.2,1), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.atencao-cartao:hover {
+    transform: translateY(-2px);
+    border-color: rgba(18, 26, 46, 0.14);
+    box-shadow: var(--sombra-cartao-hover);
+}
+
+.atencao-cartao.atencao-perigo { border-left-color: var(--cor-perigo); }
+.atencao-cartao.atencao-alerta { border-left-color: var(--cor-alerta); }
+.atencao-cartao.atencao-info { border-left-color: var(--cor-primaria); }
+
+.atencao-rotulo {
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    color: var(--cor-texto-suave);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.atencao-rotulo::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+}
+
+.atencao-perigo .atencao-rotulo { color: var(--cor-perigo); }
+.atencao-alerta .atencao-rotulo { color: var(--cor-alerta); }
+.atencao-info .atencao-rotulo { color: var(--cor-primaria); }
+
+@media (prefers-reduced-motion: no-preference) {
+    .atencao-perigo .atencao-rotulo::before {
+        animation: pulsarPonto 1.6s ease-in-out infinite;
+    }
+}
+
+.atencao-valor {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 0.2rem;
+}
+
+.atencao-cartao.atencao-perigo .atencao-valor { color: var(--cor-perigo); }
+.atencao-cartao.atencao-alerta .atencao-valor { color: var(--cor-alerta); }
+
+.atencao-meta {
+    font-size: 0.78rem;
+    color: var(--cor-texto-suave);
+    margin-top: 0.1rem;
+}
+
+.atencao-acao {
+    display: inline-block;
+    margin-top: 0.4rem;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--cor-primaria);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+/* ===================== KPIs em destaque (dashboard) ===================== */
+.kpi-grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.kpi-cartao {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--vidro-bg);
+    -webkit-backdrop-filter: var(--vidro-blur);
+    backdrop-filter: var(--vidro-blur);
+    border: 1px solid var(--vidro-borda);
+    border-top-color: var(--vidro-borda-topo);
+    border-radius: var(--raio-borda);
+    box-shadow: var(--sombra-cartao);
+    padding: 1.35rem 1.5rem;
+    transition: transform 0.3s cubic-bezier(.4,0,.2,1), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.kpi-cartao:hover {
+    transform: translateY(-2px);
+    border-color: rgba(18, 26, 46, 0.14);
+    box-shadow: var(--sombra-cartao-hover);
+}
+
+.kpi-rotulo {
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--cor-texto-suave);
+}
+
+.kpi-valor {
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-top: 0.3rem;
+}
+
+.kpi-nota {
+    font-size: 0.78rem;
+    color: var(--cor-texto-suave);
+    margin-top: 0.3rem;
+}
+
+/* ===================== Métricas secundárias (chips compactos) ===================== */
+.metricas-linha {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.6rem;
+}
+
+.metrica-chip {
+    background-color: var(--vidro-bg);
+    -webkit-backdrop-filter: var(--vidro-blur);
+    backdrop-filter: var(--vidro-blur);
+    border: 1px solid var(--vidro-borda);
+    border-radius: var(--raio-borda-sm);
+    padding: 0.6rem 0.8rem;
+    transition: border-color 0.25s ease, background-color 0.25s ease;
+}
+
+    .metrica-chip:hover {
+        border-color: rgba(18, 26, 46, 0.15);
+        background-color: var(--vidro-bg-hover);
+    }
+
+.metrica-rotulo {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+}
+
+.metrica-valor {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-top: 0.1rem;
+}
+
+/* ===================== Chips de resumo (telas de cadastro) ===================== */
+.resumo-linha {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.resumo-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 999px;
+    background-color: var(--vidro-bg);
+    border: 1px solid var(--vidro-borda);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--cor-texto);
+    transition: border-color 0.25s ease, background-color 0.25s ease;
+}
+
+    .resumo-chip:hover {
+        border-color: rgba(18, 26, 46, 0.15);
+        background-color: var(--vidro-bg-hover);
+    }
+
+.resumo-chip .valor { font-family: "IBM Plex Mono", monospace; }
+.resumo-chip.resumo-perigo { color: var(--cor-perigo); border-color: rgba(200, 51, 61, 0.3); }
+.resumo-chip.resumo-alerta { color: var(--cor-alerta); border-color: rgba(162, 101, 10, 0.3); }
+
+/* ===================== Barra de filtros ===================== */
+.barra-filtros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.barra-filtros .form-control,
+.barra-filtros .form-select {
+    width: auto;
+    min-width: 12rem;
+}
+
+/* ===================== Tabelas de dados — painel de vidro em volta ===================== */
+.tabela-cartao {
+    background-color: var(--vidro-bg);
+    -webkit-backdrop-filter: var(--vidro-blur);
+    backdrop-filter: var(--vidro-blur);
+    border: 1px solid var(--vidro-borda);
+    border-top-color: var(--vidro-borda-topo);
+    border-radius: var(--raio-borda);
+    box-shadow: var(--sombra-cartao);
+    overflow: hidden;
+    overflow-x: auto;
+}
+
+.tabela-cartao table {
+    margin-bottom: 0;
+}
+
+.tabela-cartao table thead th {
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+}
+
+.tabela-cartao table thead th:first-child,
+.tabela-cartao table tbody td:first-child {
+    padding-left: 1.35rem;
+}
+
+.tabela-cartao table thead th:last-child,
+.tabela-cartao table tbody td:last-child {
+    padding-right: 1.35rem;
+}
+
+.tabela-cartao table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Célula de entidade — avatar com iniciais + nome/detalhe empilhados,
+   pra tabela de fornecedores/cadastros parar de ser só texto corrido. */
+.entidade-celula {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.entidade-avatar {
+    flex: none;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--cor-primaria);
+    background: linear-gradient(145deg, rgba(28, 47, 143, 0.16), rgba(22, 163, 90, 0.12));
+    border: 1px solid rgba(18, 26, 46, 0.08);
+}
+
+.entidade-nome {
+    font-weight: 700;
+    color: var(--cor-texto);
+}
+
+.entidade-detalhe {
+    font-size: 0.78rem;
+    color: var(--cor-texto-suave);
+}
+
+/* Não escopado a `.barra-filtros` de propósito — algumas telas (Contas a
+   Pagar) usam a grade de colunas do Bootstrap em vez da barra de filtros,
+   e o botão "Limpar filtros" precisa do mesmo visual nas duas. */
+.limpar-filtros {
+    background: none;
+    border: none;
+    color: var(--cor-primaria);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    padding: 0;
+}
+
+/* ===================== Entrada suave (dashboard e telas de cadastro) ===================== */
+@media (prefers-reduced-motion: no-preference) {
+    .content {
+        animation: entradaSuave 0.4s cubic-bezier(.16,1,.3,1) both;
+    }
+
+    .atencao-grade > *, .kpi-grade > *, .metricas-linha > *, .resumo-linha > * {
+        animation: entradaSuave 0.5s cubic-bezier(.16,1,.3,1) both;
+    }
+
+    .atencao-grade > *:nth-child(1), .kpi-grade > *:nth-child(1), .metricas-linha > *:nth-child(1), .resumo-linha > *:nth-child(1) { animation-delay: 0.02s; }
+    .atencao-grade > *:nth-child(2), .kpi-grade > *:nth-child(2), .metricas-linha > *:nth-child(2), .resumo-linha > *:nth-child(2) { animation-delay: 0.07s; }
+    .atencao-grade > *:nth-child(3), .kpi-grade > *:nth-child(3), .metricas-linha > *:nth-child(3), .resumo-linha > *:nth-child(3) { animation-delay: 0.12s; }
+    .atencao-grade > *:nth-child(4), .kpi-grade > *:nth-child(4), .metricas-linha > *:nth-child(4), .resumo-linha > *:nth-child(4) { animation-delay: 0.17s; }
+    .atencao-grade > *:nth-child(5), .kpi-grade > *:nth-child(5), .metricas-linha > *:nth-child(5), .resumo-linha > *:nth-child(5) { animation-delay: 0.22s; }
 }

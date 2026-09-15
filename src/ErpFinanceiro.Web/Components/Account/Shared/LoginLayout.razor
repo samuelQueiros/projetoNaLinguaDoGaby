@@ -1,0 +1,32 @@
+@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+
+@* Layout dedicado da tela de login — sem sidebar/top-row do MainLayout,
+   porque uma tela de acesso não deve mostrar o menu de um sistema em que
+   o usuário ainda não entrou (o próprio conteúdo já cobre a viewport
+   inteira, ver Login.razor.css). *@
+
+@if (HttpContext is null)
+{
+    <p>Carregando...</p>
+}
+else
+{
+    @Body
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (HttpContext is null)
+        {
+            // Se este código rodar, estamos em modo interativo, sem HttpContext.
+            // As páginas de Identity precisam gravar cookies, o que exige um
+            // HttpContext — para isso, forçamos a volta ao modo estático.
+            NavigationManager.Refresh(forceReload: true);
+        }
+    }
+}

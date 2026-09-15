@@ -25,6 +25,10 @@ public sealed record FiltroBoletos(
     int? Mes = null,
     int? Ano = null);
 
+/// <summary>
+/// Casos de uso de Boleto (seção 8 do escopo/Passo 7 do plano do MVP).
+/// Exclusão sempre lógica — mesma convenção de ContaPagar/Fornecedor.
+/// </summary>
 public interface IGerenciadorBoletos
 {
     Task<ResultadoCriacao<Boleto>> CriarAsync(BoletoInput input, Guid usuarioId);

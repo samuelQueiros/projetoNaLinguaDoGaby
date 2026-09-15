@@ -15,7 +15,13 @@
 
 <div class="central-cabecalho">
     <h1>Central de Documentos</h1>
-    <p>Jogue aqui comprovantes, contratos e notas fiscais. A gente organiza o resto.</p>
+    <div class="selo-ia-destaque">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+        </svg>
+        Leitura automática por IA
+    </div>
+    <p>Jogue aqui comprovantes, contratos e notas fiscais. Uma IA lê cada documento, extrai os dados e monta um rascunho — nada vira lançamento oficial sem um Administrador revisar e aprovar.</p>
 </div>
 
 <div class="dropzone @(arrastando ? "dropzone--ativo" : "") @(enviando ? "dropzone--ocupado" : "")"
@@ -140,6 +146,7 @@ else
 
     private List<DocumentoImportado> documentos = new();
     private Guid usuarioId;
+    private bool ehAdministrador;
     private bool arrastando;
     private bool enviando;
     private int totalEnviando;
@@ -153,6 +160,7 @@ else
         var state = await (AuthState ?? Task.FromResult(new AuthenticationState(new ClaimsPrincipal())));
         var usuario = await UserManager.GetUserAsync(state.User);
         usuarioId = usuario?.Id ?? Guid.Empty;
+        ehAdministrador = usuario is not null && await UserManager.IsInRoleAsync(usuario, nameof(PerfilUsuario.Administrador));
         await RecarregarAsync();
         _ = MonitorarAsync();
     }
@@ -176,7 +184,13 @@ else
 
     private async Task RecarregarAsync()
     {
-        documentos = (await Gerenciador.ListarAsync(new FiltroDocumentosImportados())).ToList();
+        // Administrador vê a fila inteira (precisa revisar documentos de
+        // qualquer pessoa); todo mundo mais vê só o que enviou — a tela
+        // listava os documentos de todo mundo pra qualquer papel autenticado
+        // antes disso, incluindo comprovantes/contratos ainda não revisados
+        // (achado da auditoria de segurança).
+        var filtro = new FiltroDocumentosImportados(EnviadoPorId: ehAdministrador ? null : usuarioId);
+        documentos = (await Gerenciador.ListarAsync(filtro)).ToList();
     }
 
     private async Task EnviarAsync(InputFileChangeEventArgs e)
@@ -203,10 +217,23 @@ else
                     string.IsNullOrWhiteSpace(arquivo.ContentType) ? "application/octet-stream" : arquivo.ContentType));
             }
 
-            var criados = await Gerenciador.EnviarAsync(payloads, usuarioId);
-            aviso = criados.Count == 1
-                ? "Documento recebido! Já estou lendo — a lista atualiza sozinha."
-                : $"{criados.Count} documentos recebidos! Já estou lendo — a lista atualiza sozinha.";
+            var resultado = await Gerenciador.EnviarAsync(payloads, usuarioId);
+            if (resultado.Criados.Count > 0)
+            {
+                aviso = resultado.Criados.Count == 1
+                    ? "Documento recebido! Já estou lendo — a lista atualiza sozinha."
+                    : $"{resultado.Criados.Count} documento(s) recebido(s)! Já estou lendo — a lista atualiza sozinha.";
+            }
+
+            if (resultado.Falhas.Count > 0)
+            {
+                // Sempre mostra o motivo de cada arquivo recusado, mesmo
+                // quando outros do mesmo lote foram aceitos — nada de
+                // "não consegui enviar" genérico escondendo que o resto
+                // passou (achado da auditoria de qualidade).
+                erro = string.Join(" ", resultado.Falhas.Select(f => $"{f.NomeArquivo}: {f.Motivo}"));
+            }
+
             await RecarregarAsync();
         }
         catch (Exception ex)

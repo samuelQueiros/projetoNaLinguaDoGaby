@@ -1,13 +1,16 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="pt-BR">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <meta name="color-scheme" content="light" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Open+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
     <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
-    <link rel="stylesheet" href="app.css" />
-    <link rel="stylesheet" href="ErpFinanceiro.Web.styles.css" />
+    <link rel="stylesheet" href="@($"app.css?v={CarimboDeVersao}")" />
+    <link rel="stylesheet" href="@($"ErpFinanceiro.Web.styles.css?v={CarimboDeVersao}")" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <title>Financeiro ONRTDPJ</title>
     <HeadOutlet />
@@ -16,6 +19,13 @@
 <body>
     <Routes />
     <script src="_framework/blazor.web.js"></script>
+    <script src="js/chat-ia.js"></script>
 </body>
 
 </html>
+
+@code {
+    // Muda a cada reinício do processo — evita CSS em cache do navegador
+    // ficar preso numa versão antiga depois de um deploy/rebuild.
+    private static readonly long CarimboDeVersao = DateTime.UtcNow.Ticks;
+}

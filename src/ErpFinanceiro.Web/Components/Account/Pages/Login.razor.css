@@ -1,0 +1,240 @@
+/* Tela de login em duas colunas, ocupando a viewport inteira — renderiza
+   sob LoginLayout (sem sidebar/top-row do MainLayout), porque uma tela de
+   acesso não deve mostrar o menu de um sistema em que o usuário ainda não
+   entrou. */
+.pagina-login {
+    min-height: 100vh;
+    display: flex;
+    background-color: var(--cor-fundo-elevado, #ffffff);
+}
+
+.login-marca {
+    flex: 1 1 46%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2.25rem;
+    padding: 4rem;
+    color: #ffffff;
+    background: linear-gradient(160deg, var(--cor-primaria, #1c2f8f) 0%, var(--cor-primaria-forte, #142266) 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+    .login-marca::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+            radial-gradient(560px circle at 92% -4%, rgba(22, 163, 90, 0.3), transparent 60%),
+            radial-gradient(460px circle at -4% 104%, rgba(255, 255, 255, 0.1), transparent 55%);
+    }
+
+.login-marca > * {
+    position: relative;
+}
+
+.login-marca__cabecalho {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.login-marca__icone {
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+}
+
+.login-marca__nome {
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    font-size: 1.05rem;
+}
+
+.login-marca__subtitulo {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.68);
+}
+
+.login-marca__corpo {
+    max-width: 30rem;
+}
+
+.login-marca__etiqueta {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.72rem;
+    font-weight: 650;
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0 0 0.9rem;
+}
+
+.login-marca__titulo {
+    font-weight: 700;
+    font-size: 2.75rem;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+    color: #ffffff;
+    margin: 0 0 1.1rem;
+}
+
+.login-marca__descricao {
+    font-size: 1.05rem;
+    font-weight: 400;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.74);
+    margin: 0;
+}
+
+/* Lista de módulos em texto corrido — sem caixinhas/borda, pra ficar mais
+   perto de uma página institucional do que de um painel de SaaS. O
+   check discreto substitui qualquer ícone, sem pesar a composição. */
+.login-marca__lista {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem 1.5rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.login-marca__item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+    .login-marca__item::before {
+        content: "";
+        flex: none;
+        width: 5px;
+        height: 5px;
+        margin-bottom: 0.15rem;
+        border-radius: 50%;
+        background: var(--cor-acento, #16a35a);
+    }
+
+.login-formulario {
+    flex: 1 1 54%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem;
+    overflow-y: auto;
+}
+
+.login-formulario__conteudo {
+    width: 100%;
+    max-width: 23rem;
+}
+
+.login-formulario__cabecalho {
+    display: none;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 2rem;
+}
+
+.login-formulario__icone {
+    width: 2rem;
+    height: 2rem;
+}
+
+.login-formulario__nome {
+    font-weight: 650;
+    font-size: 1rem;
+    color: var(--cor-texto);
+}
+
+.login-formulario__subtitulo {
+    font-size: 0.78rem;
+    color: var(--cor-texto-suave);
+}
+
+.login-formulario__etiqueta {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.72rem;
+    font-weight: 650;
+    color: var(--cor-primaria);
+    margin: 0 0 0.6rem;
+}
+
+.login-formulario__titulo {
+    font-weight: 700;
+    font-size: 2rem;
+    letter-spacing: -0.03em;
+    margin: 0 0 0.5rem;
+}
+
+.login-formulario__ajuda {
+    color: var(--cor-texto-suave);
+    font-size: 0.92rem;
+    margin: 0 0 2.25rem;
+}
+
+.login-formulario__campo-senha {
+    position: relative;
+}
+
+    .login-formulario__campo-senha ::deep .form-control {
+        padding-right: 2.6rem;
+    }
+
+.login-formulario__alternar-senha {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0.15rem;
+    width: 2.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--cor-texto-fraco);
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+    .login-formulario__alternar-senha:hover {
+        color: var(--cor-texto-suave);
+    }
+
+@media (max-width: 900px) {
+    .pagina-login {
+        flex-direction: column;
+    }
+
+    .login-marca {
+        flex: none;
+        padding: 2.5rem 1.75rem;
+        gap: 1.5rem;
+    }
+
+    .login-marca__titulo {
+        font-size: 1.9rem;
+    }
+
+    .login-marca__descricao {
+        font-size: 0.95rem;
+    }
+
+    .login-marca__lista {
+        display: none;
+    }
+
+    .login-formulario {
+        flex: none;
+        padding: 2.25rem 1.5rem 2.75rem;
+    }
+
+    .login-formulario__cabecalho {
+        display: flex;
+    }
+}

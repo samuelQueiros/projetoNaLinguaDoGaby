@@ -9,13 +9,19 @@ namespace ErpFinanceiro.Application.Usuarios;
 /// </summary>
 public interface IGerenciadorUsuarios
 {
-    Task<ResultadoOperacao> CriarUsuarioAsync(CriarUsuarioInput input);
+    Task<ResultadoOperacao> CriarUsuarioAsync(CriarUsuarioInput input, Guid chamadorId);
 
     /// <summary>
     /// Exclusão lógica: usuário desativado não é removido, apenas perde
     /// acesso (Ativo = false, login bloqueado).
     /// </summary>
-    Task<ResultadoOperacao> DesativarUsuarioAsync(Guid usuarioId);
+    Task<ResultadoOperacao> DesativarUsuarioAsync(Guid usuarioId, Guid chamadorId);
 
-    Task<ResultadoOperacao> TrocarPerfilAsync(Guid usuarioId, PerfilUsuario novoPerfil);
+    Task<ResultadoOperacao> TrocarPerfilAsync(Guid usuarioId, PerfilUsuario novoPerfil, Guid chamadorId);
+
+    /// <summary>
+    /// Todos os usuários com os papéis já carregados numa única consulta —
+    /// evita N+1 (um GetRolesAsync por usuário) na tela de administração.
+    /// </summary>
+    Task<IReadOnlyList<(Usuario Usuario, IReadOnlyList<string> Papeis)>> ListarComPapeisAsync();
 }

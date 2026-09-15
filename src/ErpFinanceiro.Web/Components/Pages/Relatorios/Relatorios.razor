@@ -69,6 +69,7 @@ else
             <a class="btn btn-sm btn-outline-danger" href="@LinkExportacao("pdf")" target="_blank">PDF</a>
         </div>
     </div>
+    <div class="tabela-cartao">
     <table class="table table-striped align-middle">
         <thead>
             <tr>
@@ -86,8 +87,8 @@ else
                     <td>@c.CentroCusto?.Nome</td>
                     <td>@c.Vencimento.ToString("dd/MM/yyyy")</td>
                     <td class="text-end">@c.ValorFinal.ToString("C")</td>
-                    <td>@c.StatusFinanceiro</td>
-                    <td>@c.StatusAprovacao</td>
+                    <td>@c.StatusFinanceiro.Rotulo()</td>
+                    <td>@c.StatusAprovacao.Rotulo()</td>
                 </tr>
             }
             @if (contas.Count == 0)
@@ -96,6 +97,7 @@ else
             }
         </tbody>
     </table>
+    </div>
 }
 
 @code {

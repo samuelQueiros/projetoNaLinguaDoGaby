@@ -1,4 +1,5 @@
 @page "/Account/Login"
+@layout ErpFinanceiro.Web.Components.Account.Shared.LoginLayout
 
 @using System.ComponentModel.DataAnnotations
 @using ErpFinanceiro.Domain
@@ -11,44 +12,95 @@
 
 <PageTitle>Entrar</PageTitle>
 
-<div class="text-center mb-4">
-    <img src="img/onrtdpj-logo.png" alt="ONRTDPJ" style="height: 2.75rem;" />
-    <p class="text-muted mt-2 mb-0">Financeiro</p>
-</div>
-<div class="row justify-content-center">
-    <div class="col-md-4">
-        <section>
-            <StatusMessage Message="@errorMessage" />
-            <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
-                <DataAnnotationsValidator />
-                <hr />
-                <ValidationSummary class="text-danger" role="alert" />
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="nome@empresa.com" />
-                    <label for="email" class="form-label">E-mail</label>
-                    <ValidationMessage For="() => Input.Email" class="text-danger" />
-                </div>
-                <div class="form-floating mb-3">
-                    <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="senha" />
-                    <label for="password" class="form-label">Senha</label>
-                    <ValidationMessage For="() => Input.Password" class="text-danger" />
-                </div>
-                <div class="checkbox mb-3">
-                    <label class="form-label">
-                        <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" />
-                        Manter conectado
-                    </label>
-                </div>
+<div class="pagina-login">
+    <div class="login-marca">
+        <div class="login-marca__cabecalho">
+            <img src="img/onrtdpj-icone.png" alt="" class="login-marca__icone" />
+            <div>
+                <div class="login-marca__nome">ONRTDPJ</div>
+                <div class="login-marca__subtitulo">Financeiro</div>
+            </div>
+        </div>
+
+        <div class="login-marca__corpo">
+            <p class="login-marca__etiqueta">Sistema interno</p>
+            <h1 class="login-marca__titulo">Painel financeiro da ONRTDPJ</h1>
+            <p class="login-marca__descricao">
+                Centraliza contas a pagar e a receber, contratos, notas fiscais e
+                conciliação bancária num único lugar — eliminando planilhas soltas
+                e divergências entre sistema e banco.
+            </p>
+        </div>
+
+        <ul class="login-marca__lista">
+            <li class="login-marca__item">Contas a Pagar</li>
+            <li class="login-marca__item">Contas a Receber</li>
+            <li class="login-marca__item">Fluxo de Caixa</li>
+            <li class="login-marca__item">Conciliação Bancária</li>
+            <li class="login-marca__item">Autenticação e Permissões</li>
+            <li class="login-marca__item">Assistente de IA para Documentos</li>
+        </ul>
+    </div>
+
+    <div class="login-formulario">
+        <div class="login-formulario__conteudo">
+            <div class="login-formulario__cabecalho">
+                <img src="img/onrtdpj-icone.png" alt="" class="login-formulario__icone" />
                 <div>
-                    <button type="submit" class="w-100 btn btn-lg btn-primary">Entrar</button>
+                    <div class="login-formulario__nome">ONRTDPJ</div>
+                    <div class="login-formulario__subtitulo">Financeiro</div>
                 </div>
-            </EditForm>
-        </section>
+            </div>
+
+            <p class="login-formulario__etiqueta">Bem-vindo</p>
+            <h2 class="login-formulario__titulo">Acesse sua conta</h2>
+            <p class="login-formulario__ajuda">Use suas credenciais do sistema para continuar.</p>
+
+            <section>
+                <StatusMessage Message="@errorMessage" />
+                <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" role="alert" />
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">E-mail</label>
+                        <InputText @bind-Value="Input.Email" id="email" class="form-control" autocomplete="username" aria-required="true" placeholder="seu@email.com" />
+                        <ValidationMessage For="() => Input.Email" class="text-danger" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Senha</label>
+                        <div class="login-formulario__campo-senha">
+                            <InputText type="@(mostrarSenha ? "text" : "password")" @bind-Value="Input.Password" id="password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="senha" />
+                            <button type="button" class="login-formulario__alternar-senha" @onclick="() => mostrarSenha = !mostrarSenha" aria-label="@(mostrarSenha ? "Ocultar senha" : "Mostrar senha")">
+                                @if (mostrarSenha)
+                                {
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.22 4.36M1 1l22 22" /><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" /></svg>
+                                }
+                                else
+                                {
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" /><circle cx="12" cy="12" r="3" /></svg>
+                                }
+                            </button>
+                        </div>
+                        <ValidationMessage For="() => Input.Password" class="text-danger" />
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <InputCheckbox @bind-Value="Input.RememberMe" class="form-check-input" id="remember-me" />
+                        <label class="form-check-label" for="remember-me">Manter conectado</label>
+                    </div>
+
+                    <button type="submit" class="w-100 btn btn-lg btn-primary">Entrar no sistema</button>
+                </EditForm>
+            </section>
+        </div>
     </div>
 </div>
 
 @code {
     private string? errorMessage;
+    private bool mostrarSenha;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;

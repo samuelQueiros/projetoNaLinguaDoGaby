@@ -1,12 +1,33 @@
 .central-cabecalho h1 {
-    margin-bottom: 0.15rem;
+    margin-bottom: 0.6rem;
 }
 
 .central-cabecalho p {
     color: var(--cor-texto-suave);
     font-size: 1.05rem;
     margin-bottom: 1.5rem;
+    max-width: 46rem;
 }
+
+.selo-ia-destaque {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.8rem 0.3rem 0.6rem;
+    margin-bottom: 0.9rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #04101f;
+    background: linear-gradient(120deg, var(--cor-primaria), var(--cor-acento));
+    box-shadow: 0 4px 18px rgba(47, 139, 255, 0.35);
+}
+
+    .selo-ia-destaque svg {
+        width: 15px;
+        height: 15px;
+    }
 
 /* ---------- Dropzone ---------- */
 .dropzone {

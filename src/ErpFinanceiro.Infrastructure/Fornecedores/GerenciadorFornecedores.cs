@@ -1,14 +1,17 @@
 using ErpFinanceiro.Application;
+using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.Data;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace ErpFinanceiro.Infrastructure.Fornecedores;
 
-public sealed class GerenciadorFornecedores(AppDbContext db) : IGerenciadorFornecedores
+public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditoria auditoria, UserManager<Usuario> userManager)
+    : IGerenciadorFornecedores
 {
-    public async Task<Fornecedor> CriarAsync(CriarFornecedorInput input)
+    public async Task<ResultadoCriacao<Fornecedor>> CriarAsync(CriarFornecedorInput input)
     {
         var fornecedor = new Fornecedor
         {
@@ -26,9 +29,17 @@ public sealed class GerenciadorFornecedores(AppDbContext db) : IGerenciadorForne
         };
 
         db.Fornecedores.Add(fornecedor);
-        await SalvarOuLancarCnpjDuplicadoAsync();
 
-        return fornecedor;
+        try
+        {
+            await SalvarOuLancarCnpjDuplicadoAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ResultadoCriacao<Fornecedor>.Falha(ex.Message);
+        }
+
+        return ResultadoCriacao<Fornecedor>.Ok(fornecedor);
     }
 
     public async Task<ResultadoOperacao> EditarAsync(Guid id, CriarFornecedorInput input)
@@ -93,8 +104,14 @@ public sealed class GerenciadorFornecedores(AppDbContext db) : IGerenciadorForne
         return await query.OrderBy(f => f.RazaoSocial).ToListAsync();
     }
 
-    public async Task<ResultadoOperacao> AdicionarDadosBancariosAsync(Guid fornecedorId, DadosBancariosInput input)
+    public async Task<ResultadoOperacao> AdicionarDadosBancariosAsync(Guid fornecedorId, DadosBancariosInput input, Guid usuarioId)
     {
+        var erroPermissao = await ValidarPermissaoDadosBancariosAsync(usuarioId);
+        if (erroPermissao is not null)
+        {
+            return erroPermissao;
+        }
+
         var fornecedorExiste = await db.Fornecedores.AnyAsync(f => f.Id == fornecedorId && f.ExcluidoEm == null);
         if (!fornecedorExiste)
         {
@@ -106,7 +123,7 @@ public sealed class GerenciadorFornecedores(AppDbContext db) : IGerenciadorForne
             await DesmarcarPrincipalAtualAsync(fornecedorId);
         }
 
-        db.DadosBancariosFornecedores.Add(new DadosBancariosFornecedor
+        var dadosBancarios = new DadosBancariosFornecedor
         {
             Id = Guid.NewGuid(),
             FornecedorId = fornecedorId,
@@ -116,19 +133,32 @@ public sealed class GerenciadorFornecedores(AppDbContext db) : IGerenciadorForne
             Tipo = input.Tipo,
             ChavePix = input.ChavePix,
             Principal = input.Principal,
-        });
+        };
+        db.DadosBancariosFornecedores.Add(dadosBancarios);
 
         await db.SaveChangesAsync();
+
+        await auditoria.RegistrarAsync(usuarioId, "AdicionarDadosBancarios", nameof(DadosBancariosFornecedor), dadosBancarios.Id,
+            null, DescricaoAuditavel(dadosBancarios));
+
         return ResultadoOperacao.Ok();
     }
 
-    public async Task<ResultadoOperacao> EditarDadosBancariosAsync(Guid dadosBancariosId, DadosBancariosInput input)
+    public async Task<ResultadoOperacao> EditarDadosBancariosAsync(Guid dadosBancariosId, DadosBancariosInput input, Guid usuarioId)
     {
+        var erroPermissao = await ValidarPermissaoDadosBancariosAsync(usuarioId);
+        if (erroPermissao is not null)
+        {
+            return erroPermissao;
+        }
+
         var dados = await db.DadosBancariosFornecedores.FirstOrDefaultAsync(d => d.Id == dadosBancariosId);
         if (dados is null)
         {
             return ResultadoOperacao.Falha("Registro de dados bancários não encontrado.");
         }
+
+        var anterior = DescricaoAuditavel(dados);
 
         if (input.Principal && !dados.Principal)
         {
@@ -143,23 +173,83 @@ public sealed class GerenciadorFornecedores(AppDbContext db) : IGerenciadorForne
         dados.Principal = input.Principal;
 
         await db.SaveChangesAsync();
+
+        await auditoria.RegistrarAsync(usuarioId, "EditarDadosBancarios", nameof(DadosBancariosFornecedor), dados.Id,
+            anterior, DescricaoAuditavel(dados));
+
         return ResultadoOperacao.Ok();
     }
 
-    public async Task<ResultadoOperacao> RemoverDadosBancariosAsync(Guid dadosBancariosId)
+    public async Task<ResultadoOperacao> RemoverDadosBancariosAsync(Guid dadosBancariosId, Guid usuarioId)
     {
+        var erroPermissao = await ValidarPermissaoDadosBancariosAsync(usuarioId);
+        if (erroPermissao is not null)
+        {
+            return erroPermissao;
+        }
+
         var dados = await db.DadosBancariosFornecedores.FirstOrDefaultAsync(d => d.Id == dadosBancariosId);
         if (dados is null)
         {
             return ResultadoOperacao.Falha("Registro de dados bancários não encontrado.");
         }
 
+        var anterior = DescricaoAuditavel(dados);
+
         // Dados bancários não são referenciados por ContaPagar/Pagamento (ao
         // contrário de Fornecedor) — remoção física aqui é aceitável, não é
         // um registro financeiro em si, só um cadastro de referência.
         db.DadosBancariosFornecedores.Remove(dados);
         await db.SaveChangesAsync();
+
+        await auditoria.RegistrarAsync(usuarioId, "RemoverDadosBancarios", nameof(DadosBancariosFornecedor), dadosBancariosId,
+            anterior, null);
+
         return ResultadoOperacao.Ok();
+    }
+
+    /// <summary>
+    /// Só campos não sensíveis — nunca Conta/ChavePix, que são cifrados em
+    /// repouso (AES-256-GCM) especificamente para não circular em texto
+    /// plano; gravar o valor decifrado no JSONB da auditoria anularia essa
+    /// proteção. "Alterada: sim/não" basta pra rastrear que a mudança
+    /// aconteceu, sem duplicar o dado sensível em outra tabela.
+    /// </summary>
+    private static object DescricaoAuditavel(DadosBancariosFornecedor dados) => new
+    {
+        dados.FornecedorId,
+        dados.Banco,
+        dados.Agencia,
+        dados.Tipo,
+        dados.Principal,
+        ContaPreenchida = !string.IsNullOrEmpty(dados.Conta),
+        ChavePixPreenchida = !string.IsNullOrEmpty(dados.ChavePix),
+    };
+
+    /// <summary>
+    /// Cadastrar/editar/remover dados bancários (conta e chave PIX) de
+    /// fornecedor é atribuição de Financeiro/Administrador — mesma convenção
+    /// de GerenciadorContasPagar/GerenciadorPagamentos. Achado crítico da
+    /// auditoria de segurança: nenhum dos três métodos validava papel nem
+    /// registrava auditoria antes, então qualquer usuário autenticado
+    /// (inclusive Consulta) podia redirecionar o PIX de um fornecedor sem
+    /// deixar rastro.
+    /// </summary>
+    private async Task<ResultadoOperacao?> ValidarPermissaoDadosBancariosAsync(Guid usuarioId)
+    {
+        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+        if (usuario is null)
+        {
+            return ResultadoOperacao.Falha("Usuário não encontrado.");
+        }
+
+        var papeis = await userManager.GetRolesAsync(usuario);
+        if (!papeis.Contains(nameof(PerfilUsuario.Financeiro)) && !papeis.Contains(nameof(PerfilUsuario.Administrador)))
+        {
+            return ResultadoOperacao.Falha("Só usuários com perfil Financeiro ou Administrador podem alterar dados bancários de fornecedor.");
+        }
+
+        return null;
     }
 
     private async Task DesmarcarPrincipalAtualAsync(Guid fornecedorId)

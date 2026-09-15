@@ -3,14 +3,22 @@ using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.Data;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace ErpFinanceiro.Infrastructure.ContasAPagar;
 
-public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditoria auditoria) : IGerenciadorContasPagar
+public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditoria auditoria, UserManager<Usuario> userManager)
+    : IGerenciadorContasPagar
 {
     public async Task<ResultadoContaPagar> CriarAsync(ContaPagarInput input, Guid usuarioId)
     {
+        var erroPermissao = await ValidarPermissaoAsync(usuarioId);
+        if (erroPermissao is not null)
+        {
+            return ResultadoContaPagar.Falha(erroPermissao.Erros.ToArray());
+        }
+
         var erros = await ValidarAsync(input);
         if (erros.Count > 0)
         {
@@ -54,6 +62,12 @@ public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditori
 
     public async Task<ResultadoOperacao> EditarAsync(Guid id, ContaPagarInput input, Guid usuarioId)
     {
+        var erroPermissao = await ValidarPermissaoAsync(usuarioId);
+        if (erroPermissao is not null)
+        {
+            return erroPermissao;
+        }
+
         var conta = await db.ContasPagar.FirstOrDefaultAsync(c => c.Id == id && c.ExcluidoEm == null);
         if (conta is null)
         {
@@ -80,7 +94,16 @@ public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditori
         conta.ValorFinal = CalculadoraValorFinal.Calcular(input.ValorOriginal, input.Desconto, input.Juros, input.Multa);
         conta.FormaPagamentoId = input.FormaPagamentoId;
 
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Mesmo cenário e mesmo tratamento de FluxoAprovacao/GerenciadorPagamentos
+            // (ContaPagar usa xmin como token de concorrência) — faltava aqui.
+            return ResultadoOperacao.Falha("Esta conta foi alterada por outro usuário. Recarregue e tente novamente.");
+        }
 
         await auditoria.RegistrarAsync(usuarioId, "Editar", nameof(ContaPagar), conta.Id, valorAnterior,
             new { conta.FornecedorId, conta.ValorFinal, conta.Vencimento });
@@ -90,6 +113,12 @@ public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditori
 
     public async Task<ResultadoOperacao> ExcluirAsync(Guid id, Guid usuarioId)
     {
+        var erroPermissao = await ValidarPermissaoAsync(usuarioId);
+        if (erroPermissao is not null)
+        {
+            return erroPermissao;
+        }
+
         var conta = await db.ContasPagar.FirstOrDefaultAsync(c => c.Id == id && c.ExcluidoEm == null);
         if (conta is null)
         {
@@ -97,15 +126,61 @@ public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditori
         }
 
         conta.ExcluidoEm = DateTime.UtcNow;
-        await db.SaveChangesAsync();
+
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ResultadoOperacao.Falha("Esta conta foi alterada por outro usuário. Recarregue e tente novamente.");
+        }
 
         await auditoria.RegistrarAsync(usuarioId, "Excluir", nameof(ContaPagar), conta.Id, null, null);
 
         return ResultadoOperacao.Ok();
     }
 
+    /// <summary>
+    /// Cadastro/edição/exclusão de conta a pagar é atribuição de Financeiro
+    /// (Gestor só aprova — ver FluxoAprovacao — e Consulta só visualiza,
+    /// mesma convenção de GerenciadorPagamentos.ValidarPermissaoAsync).
+    /// Checado aqui na camada Application, não só na UI — achado crítico da
+    /// auditoria de segurança: nenhum dos três métodos validava papel antes.
+    /// </summary>
+    private async Task<ResultadoOperacao?> ValidarPermissaoAsync(Guid usuarioId)
+    {
+        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+        if (usuario is null)
+        {
+            return ResultadoOperacao.Falha("Usuário não encontrado.");
+        }
+
+        var papeis = await userManager.GetRolesAsync(usuario);
+        if (!papeis.Contains(nameof(PerfilUsuario.Financeiro)) && !papeis.Contains(nameof(PerfilUsuario.Administrador)))
+        {
+            return ResultadoOperacao.Falha("Só usuários com perfil Financeiro ou Administrador podem cadastrar, editar ou excluir contas a pagar.");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// AsNoTracking() de propósito — sem isso, essa é a query que preenche
+    /// o campo `conta` da tela de detalhe, e como todos os Gerenciadores
+    /// compartilham a mesma instância de AppDbContext (escopo do circuito
+    /// Blazor Server), o EF Core devolve a MESMA instância rastreada
+    /// quando FluxoAprovacao/GerenciadorPagamentos buscam essa conta pelo
+    /// Id de novo: aprovar/pagar mutava o objeto que a tela já tinha em
+    /// mãos por baixo dos panos, antes mesmo do recarregamento explícito
+    /// da tela rodar — o que fazia um componente filho (PainelPagamentos)
+    /// montar cedo demais e disputar a mesma instância de DbContext com
+    /// uma consulta ainda em andamento (achado descoberto testando de
+    /// verdade o fluxo completo aprovar → pagar → estornar).
+    /// </summary>
     public async Task<ContaPagar?> ObterAsync(Guid id) =>
         await db.ContasPagar
+            .AsNoTracking()
             .Include(c => c.Fornecedor)
             .Include(c => c.Categoria)
             .Include(c => c.CentroCusto)

@@ -2,19 +2,65 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
 @using ErpFinanceiro.Application.Cartoes
 @using ErpFinanceiro.Domain
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
 @inject IGerenciadorContasBancariasEmpresa Gerenciador
+@inject UserManager<Usuario> UserManager
 
 <PageTitle>Contas bancárias</PageTitle>
 
 <h1>Contas bancárias da empresa</h1>
 <p class="text-muted">De onde o dinheiro sai — não confundir com os dados bancários de fornecedores.</p>
 
-<div class="mb-3 d-flex justify-content-end">
-    <button class="btn btn-primary" @onclick="AbrirNovo">+ Nova conta</button>
+@if (contas is not null)
+{
+    <div class="resumo-linha mb-3">
+        <div class="resumo-chip">Total <span class="valor">@contas.Count</span></div>
+        <div class="resumo-chip">Ativas <span class="valor">@contas.Count(c => c.Ativo)</span></div>
+        @if (contas.Any(c => !c.Ativo))
+        {
+            <div class="resumo-chip">Inativas <span class="valor">@contas.Count(c => !c.Ativo)</span></div>
+        }
+    </div>
+}
+
+<div class="barra-filtros mb-3">
+    <input class="form-control" @bind="filtroTexto" @bind:event="oninput" placeholder="Buscar por apelido ou banco..." style="min-width: 18rem;" />
+    <select class="form-select" @bind="filtroBanco">
+        <option value="">Qualquer banco</option>
+        @foreach (var banco in BancosDisponiveis)
+        {
+            <option value="@banco">@banco</option>
+        }
+    </select>
+    <select class="form-select" @bind="filtroTipo">
+        <option value="">Qualquer tipo</option>
+        <option value="@TipoContaBancaria.Corrente">Corrente</option>
+        <option value="@TipoContaBancaria.Poupanca">Poupança</option>
+    </select>
+    <select class="form-select" @bind="filtroStatus">
+        <option value="">Ativas e inativas</option>
+        <option value="ativa">Somente ativas</option>
+        <option value="inativa">Somente inativas</option>
+    </select>
+    @if (HaFiltrosAtivos)
+    {
+        <button class="limpar-filtros" @onclick="LimparFiltros">Limpar filtros</button>
+    }
+    <AuthorizeView Roles="Financeiro,Administrador">
+        <Authorized>
+            <button class="btn btn-primary ms-auto" @onclick="AbrirNovo">+ Nova conta</button>
+        </Authorized>
+    </AuthorizeView>
 </div>
+
+@if (!formularioAberto && !string.IsNullOrEmpty(erro))
+{
+    <div class="alert alert-danger">@erro</div>
+}
 
 @if (contas is null)
 {
@@ -22,6 +68,7 @@
 }
 else
 {
+    <div class="tabela-cartao">
     <table class="table table-striped">
         <thead>
             <tr>
@@ -35,39 +82,48 @@ else
             </tr>
         </thead>
         <tbody>
-            @foreach (var c in contas)
+            @foreach (var c in Filtradas)
             {
                 <tr>
                     <td>@c.Apelido</td>
                     <td>@c.Banco</td>
-                    <td>@c.Agencia</td>
-                    <td>@Mascarar(c.Conta)</td>
+                    <td class="num">@c.Agencia</td>
+                    <td class="num">@c.Conta.MascararFinal4()</td>
                     <td>@(c.Tipo == TipoContaBancaria.Corrente ? "Corrente" : "Poupança")</td>
                     <td>
                         @if (c.Ativo)
                         {
-                            <span class="badge bg-success">Ativa</span>
+                            <span class="pill pill-sucesso">Ativa</span>
                         }
                         else
                         {
-                            <span class="badge bg-secondary">Inativa</span>
+                            <span class="pill pill-neutra">Inativa</span>
                         }
                     </td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirEdicao(c)">Editar</button>
-                        @if (c.Ativo)
-                        {
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => AlterarAtivoAsync(c.Id, false)">Inativar</button>
-                        }
-                        else
-                        {
-                            <button class="btn btn-sm btn-outline-success" @onclick="() => AlterarAtivoAsync(c.Id, true)">Reativar</button>
-                        }
+                        <AuthorizeView Roles="Financeiro,Administrador">
+                            <Authorized>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => AbrirEdicao(c)">Editar</button>
+                                @if (c.Ativo)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => AlterarAtivoAsync(c.Id, false)">Inativar</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-success" @onclick="() => AlterarAtivoAsync(c.Id, true)">Reativar</button>
+                                }
+                            </Authorized>
+                        </AuthorizeView>
                     </td>
                 </tr>
             }
+            @if (!Filtradas.Any())
+            {
+                <tr><td colspan="7" class="text-center text-muted">Nenhuma conta encontrada com esses filtros.</td></tr>
+            }
         </tbody>
     </table>
+    </div>
 }
 
 @if (formularioAberto)
@@ -103,6 +159,10 @@ else
                     <label class="form-label">Conta</label>
                     <InputText class="form-control" @bind-Value="modelo.Conta" />
                 </div>
+                @if (!string.IsNullOrEmpty(erro))
+                {
+                    <div class="alert alert-danger">@erro</div>
+                }
                 <button type="submit" class="btn btn-primary">Salvar</button>
                 <button type="button" class="btn btn-link" @onclick="() => formularioAberto = false">Cancelar</button>
             </EditForm>
@@ -115,8 +175,54 @@ else
     private bool formularioAberto;
     private Guid? editandoId;
     private FormularioModelo modelo = new();
+    private string? erro;
+    private Guid usuarioId;
 
-    protected override async Task OnInitializedAsync() => await CarregarAsync();
+    [CascadingParameter]
+    private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? AuthState { get; set; }
+
+    private string filtroTexto = "";
+    private string filtroBanco = "";
+    private string filtroTipo = "";
+    private string filtroStatus = "";
+
+    private bool HaFiltrosAtivos =>
+        !string.IsNullOrWhiteSpace(filtroTexto) || !string.IsNullOrWhiteSpace(filtroBanco) ||
+        !string.IsNullOrWhiteSpace(filtroTipo) || !string.IsNullOrWhiteSpace(filtroStatus);
+
+    private IEnumerable<string> BancosDisponiveis =>
+        (contas ?? new List<ContaBancariaEmpresa>()).Select(c => c.Banco).Distinct().OrderBy(b => b);
+
+    private IEnumerable<ContaBancariaEmpresa> Filtradas =>
+        (contas ?? new List<ContaBancariaEmpresa>())
+        .Where(c => string.IsNullOrWhiteSpace(filtroTexto) ||
+                    c.Apelido.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase) ||
+                    c.Banco.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase))
+        .Where(c => string.IsNullOrWhiteSpace(filtroBanco) || c.Banco == filtroBanco)
+        .Where(c => string.IsNullOrWhiteSpace(filtroTipo) || c.Tipo.ToString() == filtroTipo)
+        .Where(c => filtroStatus switch
+        {
+            "ativa" => c.Ativo,
+            "inativa" => !c.Ativo,
+            _ => true,
+        });
+
+    private void LimparFiltros()
+    {
+        filtroTexto = "";
+        filtroBanco = "";
+        filtroTipo = "";
+        filtroStatus = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await (AuthState ?? Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(new ClaimsPrincipal())));
+        var usuario = await UserManager.GetUserAsync(authState.User);
+        usuarioId = usuario?.Id ?? Guid.Empty;
+
+        await CarregarAsync();
+    }
 
     private async Task CarregarAsync() => contas = (await Gerenciador.ListarAsync()).ToList();
 
@@ -124,6 +230,7 @@ else
     {
         editandoId = null;
         modelo = new FormularioModelo();
+        erro = null;
         formularioAberto = true;
     }
 
@@ -131,19 +238,34 @@ else
     {
         editandoId = c.Id;
         modelo = new FormularioModelo { Apelido = c.Apelido, Banco = c.Banco, Agencia = c.Agencia, Conta = c.Conta, Tipo = c.Tipo };
+        erro = null;
         formularioAberto = true;
     }
 
     private async Task SalvarAsync()
     {
+        erro = null;
         var input = new ContaBancariaEmpresaInput(modelo.Banco, modelo.Agencia, modelo.Conta, modelo.Tipo, modelo.Apelido);
         if (editandoId is Guid id)
         {
-            await Gerenciador.EditarAsync(id, input);
+            var resultado = await Gerenciador.EditarAsync(id, input, usuarioId);
+            if (!resultado.Sucesso)
+            {
+                erro = string.Join("; ", resultado.Erros);
+                return;
+            }
         }
         else
         {
-            await Gerenciador.CriarAsync(input);
+            try
+            {
+                await Gerenciador.CriarAsync(input, usuarioId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                erro = ex.Message;
+                return;
+            }
         }
 
         formularioAberto = false;
@@ -152,20 +274,18 @@ else
 
     private async Task AlterarAtivoAsync(Guid id, bool ativo)
     {
-        if (ativo)
+        var resultado = ativo
+            ? await Gerenciador.ReativarAsync(id, usuarioId)
+            : await Gerenciador.InativarAsync(id, usuarioId);
+
+        if (!resultado.Sucesso)
         {
-            await Gerenciador.ReativarAsync(id);
-        }
-        else
-        {
-            await Gerenciador.InativarAsync(id);
+            erro = string.Join("; ", resultado.Erros);
+            return;
         }
 
         await CarregarAsync();
     }
-
-    private static string Mascarar(string valor) =>
-        valor.Length <= 4 ? new string('*', valor.Length) : new string('*', valor.Length - 4) + valor[^4..];
 
     private sealed class FormularioModelo
     {
