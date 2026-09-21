@@ -101,7 +101,14 @@ public sealed class AgenteChatIaGemini(HttpClient http, ExecutorFerramentasChatI
                 {
                     var corpo = await resposta.Content.ReadAsStringAsync(ct);
                     logger.LogError("Gemini respondeu {Status} no chat: {Corpo}", (int)resposta.StatusCode, corpo);
-                    return RespostaChatIa.Falha("o serviço de IA recusou a requisição (verifique a chave/modelo configurados).");
+
+                    // Só o código HTTP no retorno pro usuário (não o corpo, que
+                    // pode conter detalhe interno do provedor) — o suficiente
+                    // pra um Administrador diagnosticar (401/403 = chave errada
+                    // ou sem permissão, 404 = nome de modelo errado, 429 =
+                    // cota excedida) sem precisar ir atrás do log do servidor.
+                    return RespostaChatIa.Falha(
+                        $"o serviço de IA recusou a requisição (HTTP {(int)resposta.StatusCode}) — verifique a chave/modelo em Configurações de IA.");
                 }
 
                 var dto = await resposta.Content.ReadFromJsonAsync<RespostaGeminiDto>(JsonOpts, ct);
