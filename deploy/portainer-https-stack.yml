@@ -28,6 +28,9 @@ services:
 
   web:
     image: ${ERP_WEB_IMAGE:-erp-financeiro-web:1.0.0}
+    build:
+      context: ..
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -80,6 +83,7 @@ services:
 
   servico-documentos:
     image: ${ERP_DOCUMENTOS_IMAGE:-erp-financeiro-documentos:1.0.0}
+    build: ../servico-documentos
     restart: unless-stopped
     environment:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?defina INTERNAL_TOKEN}

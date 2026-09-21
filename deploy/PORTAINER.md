@@ -6,6 +6,17 @@ inicia a aplicação web, o PostgreSQL e o serviço Python de documentos.
 
 ## 1. Construir as imagens
 
+Duas formas — escolha uma:
+
+**A) Deixar o Portainer construir (recomendado, use Repository no passo 3).**
+`deploy/portainer-stack.yml` já tem `build:` apontando para a raiz do
+repositório e para `servico-documentos/`. Ao criar a stack com **Build
+method: Repository**, o Portainer clona o repositório e builda as duas
+imagens sozinho a cada deploy — não precisa rodar `docker build` manualmente.
+Isso exige apenas que o token/autenticação Git usado tenha acesso de leitura
+ao repositório (veja o passo 3 para a ressalva sobre GitOps updates).
+
+**B) Construir manualmente (necessário se for usar Web editor/Upload).**
 Na máquina gerenciada pelo Portainer, entre na pasta `projetoNaLinguaDoGaby`
 (a que contém `ErpFinanceiro.sln`) e execute:
 
@@ -18,6 +29,12 @@ Reconstrua a imagem web mesmo se fez o build da configuração HTTPS anterior:
 ela agora inclui suporte explícito ao login por HTTP local. As imagens devem
 estar no Docker gerenciado pelo Portainer; construir em outra máquina não as
 transfere automaticamente.
+
+Nos dois caminhos, o Compose só builda quando a imagem com a tag esperada
+ainda não existe localmente — se você já construiu manualmente (caminho B) e
+depois mudar para Repository, uma nova imagem só é gerada a partir do código
+atualizado se você trocar a tag (`ERP_WEB_IMAGE`/`ERP_DOCUMENTOS_IMAGE`) ou
+remover a imagem antiga antes do deploy.
 
 ## 2. Configurar acesso e senhas
 

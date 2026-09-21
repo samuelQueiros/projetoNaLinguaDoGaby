@@ -1,5 +1,11 @@
-# Docker Standalone: cole no Web editor do Portainer após construir as imagens.
-# Consulte deploy/PORTAINER.md e importe as variáveis de portainer.env.example.
+# Docker Standalone. Consulte deploy/PORTAINER.md e importe as variáveis de
+# portainer.env.example. Pode ser implantado de duas formas:
+#   - Repository: o Portainer clona o repositório e builda as imagens local-
+#     mente a partir dos blocos `build:` abaixo (nenhum docker build manual).
+#   - Web editor: cole este arquivo e construa as imagens manualmente antes
+#     (docker build ...) — os blocos `build:` continuam funcionando também
+#     nesse caminho, mas só valem se o contexto (pasta com ErpFinanceiro.sln)
+#     estiver disponível onde o Docker builda, o que só ocorre via Repository.
 x-logging: &logging
   driver: json-file
   options:
@@ -9,6 +15,9 @@ x-logging: &logging
 services:
   web:
     image: ${ERP_WEB_IMAGE:-erp-financeiro-web:1.0.0}
+    build:
+      context: ..
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -60,6 +69,7 @@ services:
 
   servico-documentos:
     image: ${ERP_DOCUMENTOS_IMAGE:-erp-financeiro-documentos:1.0.0}
+    build: ../servico-documentos
     restart: unless-stopped
     environment:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?defina INTERNAL_TOKEN}
