@@ -6,35 +6,24 @@ inicia a aplicação web, o PostgreSQL e o serviço Python de documentos.
 
 ## 1. Construir as imagens
 
-Duas formas — escolha uma:
+`deploy/portainer-stack.yml` tem `build:` apontando para a raiz do
+repositório e para `servico-documentos/`, com `pull_policy: build` — ou
+seja, o Compose sempre constrói a imagem a partir do código-fonte, nunca
+tenta baixar de um registry. Use **Build method: Repository** ao criar a
+stack (passo 3): o Portainer clona o repositório e builda as duas imagens
+sozinho a cada deploy (inicial e nos seguintes, inclusive pelo botão **Pull
+and redeploy**) — não precisa rodar `docker build` manualmente. Isso exige
+apenas que o token/autenticação Git usado tenha acesso de leitura ao
+repositório (veja o passo 3 para a ressalva sobre GitOps updates).
 
-**A) Deixar o Portainer construir (recomendado, use Repository no passo 3).**
-`deploy/portainer-stack.yml` já tem `build:` apontando para a raiz do
-repositório e para `servico-documentos/`. Ao criar a stack com **Build
-method: Repository**, o Portainer clona o repositório e builda as duas
-imagens sozinho a cada deploy — não precisa rodar `docker build` manualmente.
-Isso exige apenas que o token/autenticação Git usado tenha acesso de leitura
-ao repositório (veja o passo 3 para a ressalva sobre GitOps updates).
-
-**B) Construir manualmente (necessário se for usar Web editor/Upload).**
-Na máquina gerenciada pelo Portainer, entre na pasta `projetoNaLinguaDoGaby`
-(a que contém `ErpFinanceiro.sln`) e execute:
-
-```bash
-docker build -t erp-financeiro-web:1.0.0 .
-docker build -t erp-financeiro-documentos:1.0.0 servico-documentos
-```
-
-Reconstrua a imagem web mesmo se fez o build da configuração HTTPS anterior:
-ela agora inclui suporte explícito ao login por HTTP local. As imagens devem
-estar no Docker gerenciado pelo Portainer; construir em outra máquina não as
-transfere automaticamente.
-
-Nos dois caminhos, o Compose só builda quando a imagem com a tag esperada
-ainda não existe localmente — se você já construiu manualmente (caminho B) e
-depois mudar para Repository, uma nova imagem só é gerada a partir do código
-atualizado se você trocar a tag (`ERP_WEB_IMAGE`/`ERP_DOCUMENTOS_IMAGE`) ou
-remover a imagem antiga antes do deploy.
+Por causa do `pull_policy: build`, os métodos **Web editor**/**Upload** não
+funcionam com este arquivo — eles não clonam o repositório, então não há
+código-fonte disponível para o Compose buildar (`docker build` manual antes
+não ajuda: mesmo com a imagem já existindo, `pull_policy: build` força uma
+tentativa de rebuild). Para deploy sem repositório Git, use uma cópia do
+YAML sem essas duas diretivas (`build:`/`pull_policy:`) e construa as
+imagens manualmente antes, com as tags de `ERP_WEB_IMAGE`/
+`ERP_DOCUMENTOS_IMAGE`.
 
 ## 2. Configurar acesso e senhas
 
