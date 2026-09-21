@@ -36,7 +36,7 @@ Edite a cópia preenchendo:
 
 | Variável | Valor |
 |---|---|
-| `ERP_BIND_IP` | `127.0.0.1` para acesso só nesta máquina |
+| `ERP_BIND_IP` | `0.0.0.0` (padrão) para aceitar acesso por qualquer interface de rede da máquina — inclusive por hostname/IP, não só `localhost`. Use `127.0.0.1` só se quiser restringir ao acesso local via `localhost`/`127.0.0.1` |
 | `ERP_PORT` | `8080`, ou outra porta livre |
 | `POSTGRES_PASSWORD` | Gere com `openssl rand -hex 32` |
 | `AES_KEY_BASE64` | Gere com `openssl rand -base64 32` |
@@ -48,10 +48,11 @@ Execute cada comando de geração separadamente. Guarde os valores e não
 publique o arquivo preenchido. Para senhas contendo `$`, use aspas simples em
 arquivos `.env` do Compose ou insira o valor literal no campo do Portainer.
 
-Se quiser acessar de outros computadores da rede local, use `ERP_BIND_IP=0.0.0.0`
-e abra `http://IP_DA_MAQUINA:8080`. Libere essa porta somente para sua rede
-confiável no firewall. HTTP transmite dados sem criptografia; para acesso pela
-Internet, use a [configuração HTTPS](HTTPS.md).
+Com `ERP_BIND_IP=0.0.0.0` (padrão), acesse por `http://localhost:8080`,
+`http://IP_DA_MAQUINA:8080` ou pelo hostname da máquina, o que for mais
+conveniente. Libere essa porta somente para sua rede confiável no firewall.
+HTTP transmite dados sem criptografia; para acesso pela Internet, use a
+[configuração HTTPS](HTTPS.md).
 
 ## 3. Criar a stack no Portainer
 

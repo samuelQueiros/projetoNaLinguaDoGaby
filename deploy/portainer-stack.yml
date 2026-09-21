@@ -36,7 +36,7 @@ services:
       Ia__Leitor__TokenInterno: ${INTERNAL_TOKEN:?defina INTERNAL_TOKEN}
       Ia__Leitor__TimeoutSegundos: "240"
     ports:
-      - "${ERP_BIND_IP:-127.0.0.1}:${ERP_PORT:-8080}:8080"
+      - "${ERP_BIND_IP:-0.0.0.0}:${ERP_PORT:-8080}:8080"
     volumes:
       - anexos:/app/storage
       - chaves:/app/keys
