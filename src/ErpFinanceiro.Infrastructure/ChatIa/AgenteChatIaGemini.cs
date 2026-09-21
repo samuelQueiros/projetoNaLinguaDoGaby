@@ -57,7 +57,18 @@ public sealed class AgenteChatIaGemini(HttpClient http, ExecutorFerramentasChatI
     {
         try
         {
-            http.Timeout = TimeSpan.FromSeconds(timeoutSegundos);
+            // NÃO usar http.Timeout aqui — este HttpClient é reaproveitado
+            // pra todas as mensagens do mesmo circuito Blazor Server (typed
+            // client transient capturado por AgenteChatIaFactory, que é
+            // Scoped e vive a sessão inteira). HttpClient.Timeout só pode
+            // ser setado antes da primeira requisição enviada; na segunda
+            // pergunta do chat isso lançava InvalidOperationException não
+            // tratada e derrubava o circuito ("recarregar página"). O
+            // timeout entra via CancellationToken, que não tem essa
+            // restrição.
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(timeoutSegundos));
+            var ctComTimeout = cts.Token;
 
             var contents = new JsonArray();
             foreach (var m in historico)
@@ -104,7 +115,7 @@ public sealed class AgenteChatIaGemini(HttpClient http, ExecutorFerramentasChatI
                     Content = JsonContent.Create(payload),
                 };
                 requisicao.Headers.Add("x-goog-api-key", apiKey);
-                using var resposta = await http.SendAsync(requisicao, ct);
+                using var resposta = await http.SendAsync(requisicao, ctComTimeout);
 
                 if (!resposta.IsSuccessStatusCode)
                 {
@@ -120,7 +131,7 @@ public sealed class AgenteChatIaGemini(HttpClient http, ExecutorFerramentasChatI
                         $"o serviço de IA recusou a requisição (HTTP {(int)resposta.StatusCode}) — verifique a chave/modelo em Configurações de IA.");
                 }
 
-                var dto = await resposta.Content.ReadFromJsonAsync<RespostaGeminiDto>(JsonOpts, ct);
+                var dto = await resposta.Content.ReadFromJsonAsync<RespostaGeminiDto>(JsonOpts, ctComTimeout);
                 var parte = dto?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault();
                 if (parte is null)
                 {

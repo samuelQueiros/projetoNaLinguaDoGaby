@@ -10,6 +10,7 @@
 @inject IAgenteChatIa Agente
 @inject UserManager<Usuario> UserManager
 @inject IJSRuntime JS
+@inject ILogger<ChatIaWidget> Logger
 
 <AuthorizeView Context="autorizacaoChat">
     <Authorized>
@@ -176,6 +177,16 @@
             {
                 erro = resposta.Texto;
             }
+        }
+        catch (Exception ex)
+        {
+            // Qualquer falha inesperada aqui (não só HTTP) não pode derrubar
+            // o circuito Blazor Server inteiro — isso já aconteceu de verdade
+            // (HttpClient.Timeout setado 2x no mesmo cliente reaproveitado,
+            // corrigido em AgenteChatIaGemini) e o sintoma pro usuário é "só
+            // dá pra fazer uma pergunta, depois pede reload".
+            Logger.LogError(ex, "Falha inesperada ao responder no chat de IA.");
+            erro = "Não consegui responder agora — tente de novo em instantes.";
         }
         finally
         {

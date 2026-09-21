@@ -83,8 +83,8 @@ public sealed class GerenciadorConfiguracaoIa(HttpClient http, IConfiguration co
         try
         {
             var baseUrl = configuracao["Ia:Leitor:BaseUrl"] ?? "http://localhost:8000";
-            http.Timeout = TimeSpan.FromSeconds(10);
-            var resposta = await http.GetAsync(new Uri(new Uri(baseUrl), "/health"));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var resposta = await http.GetAsync(new Uri(new Uri(baseUrl), "/health"), cts.Token);
             return resposta.IsSuccessStatusCode
                 ? ResultadoOperacao.Ok()
                 : ResultadoOperacao.Falha($"Serviço de documentos respondeu {(int)resposta.StatusCode}.");
@@ -99,13 +99,19 @@ public sealed class GerenciadorConfiguracaoIa(HttpClient http, IConfiguration co
     {
         try
         {
-            http.Timeout = TimeSpan.FromSeconds(10);
+            // NÃO usar http.Timeout aqui — este HttpClient (typed client) é
+            // capturado uma vez pela página/componente e reaproveitado a
+            // cada clique em "Testar conexão"; Timeout só pode ser setado
+            // antes da primeira requisição enviada, e no segundo clique
+            // lançaria InvalidOperationException. O timeout entra via
+            // CancellationToken (mesma correção de AgenteChatIaGemini).
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             HttpResponseMessage resposta = provedor switch
             {
-                ProvedorIa.Gemini => await EnviarComHeaderGoogleAsync(http, "https://generativelanguage.googleapis.com/v1beta/models", apiKey),
-                ProvedorIa.OpenAi => await EnviarComBearerAsync(http, "https://api.openai.com/v1/models", apiKey),
-                ProvedorIa.Anthropic => await EnviarComAnthropicAsync(http, apiKey),
+                ProvedorIa.Gemini => await EnviarComHeaderGoogleAsync(http, "https://generativelanguage.googleapis.com/v1beta/models", apiKey, cts.Token),
+                ProvedorIa.OpenAi => await EnviarComBearerAsync(http, "https://api.openai.com/v1/models", apiKey, cts.Token),
+                ProvedorIa.Anthropic => await EnviarComAnthropicAsync(http, apiKey, cts.Token),
                 _ => throw new NotSupportedException($"Provedor não suportado: {provedor}"),
             };
 
@@ -126,25 +132,25 @@ public sealed class GerenciadorConfiguracaoIa(HttpClient http, IConfiguration co
     /// (método+URI em nível Information). Mesma correção aplicada em
     /// AgenteChatIaGemini (achado crítico da auditoria de segurança).
     /// </summary>
-    private static Task<HttpResponseMessage> EnviarComHeaderGoogleAsync(HttpClient http, string url, string apiKey)
+    private static Task<HttpResponseMessage> EnviarComHeaderGoogleAsync(HttpClient http, string url, string apiKey, CancellationToken ct)
     {
         var requisicao = new HttpRequestMessage(HttpMethod.Get, url);
         requisicao.Headers.Add("x-goog-api-key", apiKey);
-        return http.SendAsync(requisicao);
+        return http.SendAsync(requisicao, ct);
     }
 
-    private static Task<HttpResponseMessage> EnviarComBearerAsync(HttpClient http, string url, string apiKey)
+    private static Task<HttpResponseMessage> EnviarComBearerAsync(HttpClient http, string url, string apiKey, CancellationToken ct)
     {
         var requisicao = new HttpRequestMessage(HttpMethod.Get, url);
         requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        return http.SendAsync(requisicao);
+        return http.SendAsync(requisicao, ct);
     }
 
-    private static Task<HttpResponseMessage> EnviarComAnthropicAsync(HttpClient http, string apiKey)
+    private static Task<HttpResponseMessage> EnviarComAnthropicAsync(HttpClient http, string apiKey, CancellationToken ct)
     {
         var requisicao = new HttpRequestMessage(HttpMethod.Get, "https://api.anthropic.com/v1/models");
         requisicao.Headers.Add("x-api-key", apiKey);
         requisicao.Headers.Add("anthropic-version", "2023-06-01");
-        return http.SendAsync(requisicao);
+        return http.SendAsync(requisicao, ct);
     }
 }
