@@ -50,6 +50,16 @@ services:
       Ia__Leitor__BaseUrl: http://servico-documentos:8000
       Ia__Leitor__TokenInterno: ${INTERNAL_TOKEN:?defina INTERNAL_TOKEN}
       Ia__Leitor__TimeoutSegundos: "240"
+      # Provedor/modelo/chave do chat e da leitura de documentos — opcionais
+      # (recurso fica "não configurado" se faltar Provedor/Modelo/ApiKey de
+      # uma finalidade). Trocar aqui exige recriar o container ("docker
+      # compose up -d" de novo com o portainer-https.env atualizado).
+      Ia__Chat__Provedor: ${CHAT_IA_PROVEDOR:-}
+      Ia__Chat__Modelo: ${CHAT_IA_MODELO:-}
+      Ia__Chat__ApiKey: ${CHAT_IA_API_KEY:-}
+      Ia__Documentos__Provedor: ${DOCUMENTOS_IA_PROVEDOR:-}
+      Ia__Documentos__Modelo: ${DOCUMENTOS_IA_MODELO:-}
+      Ia__Documentos__ApiKey: ${DOCUMENTOS_IA_API_KEY:-}
     volumes:
       - anexos:/app/storage
       - chaves:/app/keys

@@ -15,9 +15,6 @@ public class LeitorDocumentosHttpTests
     {
         public Task<ConfiguracaoIa?> ObterAsync(FinalidadeConfiguracaoIa finalidade) => Task.FromResult(valor);
 
-        public Task<ResultadoOperacao> SalvarAsync(FinalidadeConfiguracaoIa finalidade, ConfiguracaoIaInput input, Guid usuarioId) =>
-            throw new NotSupportedException();
-
         public Task<ResultadoOperacao> TestarConexaoAsync(FinalidadeConfiguracaoIa finalidade) =>
             throw new NotSupportedException();
     }

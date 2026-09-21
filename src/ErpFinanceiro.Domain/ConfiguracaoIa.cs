@@ -28,33 +28,23 @@ public enum ProvedorIa
 }
 
 /// <summary>
-/// Configuração de IA editável pelo Administrador (seção "IA" do escopo).
-/// Uma linha por <see cref="FinalidadeConfiguracaoIa"/>. A chave de API
-/// nunca é guardada em texto puro — <see cref="ApiKey"/> é cifrada
-/// em repouso (AES-256-GCM, mesmo mecanismo já usado para ChavePix de
-/// fornecedor) e nunca deve ser exposta de volta, nem em auditoria.
+/// Configuração de IA de uma <see cref="FinalidadeConfiguracaoIa"/>, lida a
+/// partir de variáveis de ambiente (seção "Ia:Documentos"/"Ia:Chat" —
+/// ver <see cref="ErpFinanceiro.Infrastructure.ConfiguracoesIa.GerenciadorConfiguracaoIa"/>),
+/// nunca do banco. Não é uma entidade EF: existe só em memória, montada a
+/// cada leitura, pra trocar de provedor/modelo/chave bastar reiniciar o
+/// container com outro valor de env var — sem migração, sem tela de
+/// cadastro, sem chave em texto puro persistida em lugar nenhum do app.
 /// </summary>
-public class ConfiguracaoIa : IEntidadeAuditavel
+public sealed class ConfiguracaoIa
 {
-    public Guid Id { get; set; }
+    public required bool Ativo { get; init; }
 
-    public FinalidadeConfiguracaoIa Finalidade { get; set; }
+    public required ProvedorIa Provedor { get; init; }
 
-    public bool Ativo { get; set; }
+    public required string Modelo { get; init; }
 
-    public ProvedorIa Provedor { get; set; }
+    public string? ApiKey { get; init; }
 
-    public string Modelo { get; set; } = string.Empty;
-
-    public string? ApiKey { get; set; }
-
-    public int TimeoutSegundos { get; set; } = 90;
-
-    public Guid? AtualizadoPorId { get; set; }
-
-    public Usuario? AtualizadoPor { get; set; }
-
-    public DateTime CriadoEm { get; set; }
-
-    public DateTime? AtualizadoEm { get; set; }
+    public int TimeoutSegundos { get; init; } = 90;
 }

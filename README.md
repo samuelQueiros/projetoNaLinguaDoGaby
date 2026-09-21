@@ -99,12 +99,14 @@ backend .NET.
 - **Auditoria** — log de auditoria de todas as ações relevantes, com tela de
   consulta dedicada.
 - **Usuários** — CRUD de usuários e atribuição de perfil (role).
-- **Configurações de IA** — tela onde o Administrador escolhe
-  provedor/modelo/chave do LLM usado na leitura de documentos e no chat,
-  sem precisar reiniciar nada.
+- **Configurações de IA** — tela (somente leitura, Administrador) que mostra
+  provedor/modelo/status do LLM usado na leitura de documentos e no chat, e
+  testa a conexão. Provedor/modelo/chave são configurados por variável de
+  ambiente (`Ia__Documentos__*` / `Ia__Chat__*`), não pela tela — ver seção
+  de variáveis de ambiente abaixo.
 - **Assistente de chat (IA)** — chat com ferramentas somente-leitura sobre
-  os dados do ERP (hoje com adapter para Gemini), configurável na mesma
-  tela de Configurações de IA.
+  os dados do ERP (hoje com adapter para Gemini), configurado por variável
+  de ambiente (`Ia__Chat__*`).
 
 ## Assistente de IA para documentos
 
@@ -234,8 +236,12 @@ Pontos importantes:
 - Depois do primeiro acesso, remova `ADMIN_PASSWORD`/
   `SeedAdministrador__SenhaInicial` para desativar o provisionamento
   inicial — isso não afeta a conta já criada.
-- Configure o provedor de IA pela tela **Configurações de IA** após o
-  primeiro deploy; sem isso, a leitura de documentos usa só OCR e regras.
+- Configure o provedor de IA pelas variáveis de ambiente `Ia__Documentos__*`
+  e `Ia__Chat__*` (Provedor/Modelo/ApiKey — ver `.env.example` ou
+  `deploy/portainer.env.example`) antes do deploy; sem isso, a leitura de
+  documentos usa só OCR e regras, e o chat fica indisponível. A tela
+  **Configurações de IA** só mostra o que está configurado e testa a
+  conexão — trocar exige reiniciar o container.
 
 ## Estrutura do repositório
 

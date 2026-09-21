@@ -19,11 +19,12 @@ namespace ErpFinanceiro.Infrastructure.DocumentosIa;
 /// e Timeout) é configurado no Program.cs via <c>AddHttpClient</c>.
 ///
 /// A cada chamada lê <see cref="IGerenciadorConfiguracaoIa"/> (finalidade
-/// Documentos) e, se estiver ativa e com chave cadastrada, manda
-/// llm_provider/llm_model/llm_api_key como override — o Administrador troca
-/// provedor/modelo/chave em /configuracoes-ia e vale na próxima chamada,
-/// sem reiniciar este serviço nem o Python. Sem override ativo, o serviço
-/// Python cai no próprio .env (ver servico-documentos/app/main.py).
+/// Documentos, vinda das variáveis de ambiente <c>Ia__Documentos__*</c>) e,
+/// se estiver ativa e com chave cadastrada, manda
+/// llm_provider/llm_model/llm_api_key como override — trocar a env var e
+/// reiniciar o container do "web" já vale na próxima chamada, sem reiniciar
+/// o Python. Sem override ativo, o serviço Python cai no próprio .env (ver
+/// servico-documentos/app/main.py).
 /// </summary>
 public sealed class LeitorDocumentosHttp(
     HttpClient http,

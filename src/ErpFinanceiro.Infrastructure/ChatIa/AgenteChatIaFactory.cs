@@ -6,12 +6,12 @@ namespace ErpFinanceiro.Infrastructure.ChatIa;
 
 /// <summary>
 /// Implementação de <see cref="IAgenteChatIa"/> registrada no DI — lê a
-/// <see cref="ConfiguracaoIa"/> (finalidade Chat) A CADA chamada (nunca
-/// cacheada) e delega pro adapter do provedor configurado. Hoje só Gemini
-/// está implementado; adicionar OpenAI/Anthropic depois é só escrever
-/// outro adapter com a mesma forma de <see cref="AgenteChatIaGemini"/> e
-/// acrescentar um `case` aqui — o catálogo de ferramentas e o resto do
-/// sistema não mudam.
+/// <see cref="ConfiguracaoIa"/> (finalidade Chat, vinda das variáveis de
+/// ambiente <c>Ia__Chat__*</c>) A CADA chamada (nunca cacheada) e delega
+/// pro adapter do provedor configurado. Hoje só Gemini está implementado;
+/// adicionar OpenAI/Anthropic depois é só escrever outro adapter com a
+/// mesma forma de <see cref="AgenteChatIaGemini"/> e acrescentar um `case`
+/// aqui — o catálogo de ferramentas e o resto do sistema não mudam.
 /// </summary>
 public sealed class AgenteChatIaFactory(
     IGerenciadorConfiguracaoIa configuracaoIa,

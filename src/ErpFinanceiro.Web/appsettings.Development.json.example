@@ -19,6 +19,16 @@
   "Ia": {
     "Leitor": {
       "Modo": "Stub"
+    },
+    "Chat": {
+      "Provedor": "Gemini",
+      "Modelo": "gemini-2.5-flash",
+      "ApiKey": ""
+    },
+    "Documentos": {
+      "Provedor": "Gemini",
+      "Modelo": "gemini-2.5-flash",
+      "ApiKey": ""
     }
   },
   "Logging": {

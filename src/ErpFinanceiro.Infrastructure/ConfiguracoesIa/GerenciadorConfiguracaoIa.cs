@@ -1,98 +1,81 @@
 using System.Net.Http.Headers;
 using ErpFinanceiro.Application;
-using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.ConfiguracoesIa;
 using ErpFinanceiro.Domain;
-using ErpFinanceiro.Infrastructure.Data;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
 namespace ErpFinanceiro.Infrastructure.ConfiguracoesIa;
 
 /// <summary>
-/// Casos de uso da tela de configuração de IA. Scoped (nunca Singleton) de
-/// propósito — cada leitura vem direto do banco, sem cache, pra trocar
-/// provedor/modelo/chave valer na próxima chamada sem reiniciar o app.
-/// O HttpClient injetado (typed client, ver Program.cs) é usado só pra
-/// "Testar conexão" — chamadas ad-hoc com URI absoluta, sem BaseAddress.
+/// Lê a configuração de IA de variáveis de ambiente — seção
+/// <c>Ia:Documentos</c> ou <c>Ia:Chat</c> (env vars <c>Ia__Documentos__*</c> /
+/// <c>Ia__Chat__*</c>: Provedor, Modelo, ApiKey, TimeoutSegundos, e o
+/// opcional Ativo pra desligar sem apagar a chave). Nada é lido do banco —
+/// <see cref="IConfiguration"/> é consultado a cada chamada (nunca cacheado
+/// num campo), então trocar a env var e reiniciar o container já é
+/// suficiente pra valer no próximo request, sem migração nem tela de
+/// cadastro. O HttpClient injetado (typed client, ver Program.cs) é usado
+/// só pra "Testar conexão" — chamadas ad-hoc com URI absoluta, sem
+/// BaseAddress.
+///
+/// Configuração ausente ou incompleta (falta Provedor, Modelo ou ApiKey, ou
+/// Provedor não reconhecido) é tratada como "não configurado" —
+/// <see cref="ObterAsync"/> devolve null, igual a antes quando a linha do
+/// banco não existia.
 /// </summary>
-public sealed class GerenciadorConfiguracaoIa(
-    AppDbContext db,
-    IRegistradorAuditoria auditoria,
-    UserManager<Usuario> userManager,
-    HttpClient http,
-    IConfiguration configuracao) : IGerenciadorConfiguracaoIa
+public sealed class GerenciadorConfiguracaoIa(HttpClient http, IConfiguration configuracao) : IGerenciadorConfiguracaoIa
 {
-    public Task<ErpFinanceiro.Domain.ConfiguracaoIa?> ObterAsync(FinalidadeConfiguracaoIa finalidade) =>
-        db.ConfiguracoesIa.FirstOrDefaultAsync(c => c.Finalidade == finalidade);
-
-    public async Task<ResultadoOperacao> SalvarAsync(FinalidadeConfiguracaoIa finalidade, ConfiguracaoIaInput input, Guid usuarioId)
+    public Task<ConfiguracaoIa?> ObterAsync(FinalidadeConfiguracaoIa finalidade)
     {
-        var erroPermissao = await ValidarAdministradorAsync(usuarioId);
-        if (erroPermissao is not null)
+        var secao = configuracao.GetSection($"Ia:{finalidade}");
+
+        var provedorTexto = secao["Provedor"];
+        var modelo = secao["Modelo"];
+        var apiKey = secao["ApiKey"];
+
+        if (string.IsNullOrWhiteSpace(provedorTexto)
+            || string.IsNullOrWhiteSpace(modelo)
+            || string.IsNullOrWhiteSpace(apiKey)
+            || !Enum.TryParse<ProvedorIa>(provedorTexto, ignoreCase: true, out var provedor))
         {
-            return ResultadoOperacao.Falha(erroPermissao);
+            return Task.FromResult<ConfiguracaoIa?>(null);
         }
 
-        if (string.IsNullOrWhiteSpace(input.Modelo))
+        // Ativo é opcional (default true quando a chave está presente) —
+        // existe só pra desligar temporariamente um provedor já configurado
+        // sem precisar apagar a chave da env var.
+        var ativo = !bool.TryParse(secao["Ativo"], out var ativoConfigurado) || ativoConfigurado;
+        var timeout = int.TryParse(secao["TimeoutSegundos"], out var timeoutConfigurado) ? timeoutConfigurado : 90;
+
+        return Task.FromResult<ConfiguracaoIa?>(new ConfiguracaoIa
         {
-            return ResultadoOperacao.Falha("Informe o nome do modelo.");
-        }
-
-        var configuracaoExistente = await db.ConfiguracoesIa.FirstOrDefaultAsync(c => c.Finalidade == finalidade);
-        var chaveAlterada = !string.IsNullOrWhiteSpace(input.NovaApiKey);
-
-        if (configuracaoExistente is null)
-        {
-            configuracaoExistente = new ErpFinanceiro.Domain.ConfiguracaoIa
-            {
-                Id = Guid.NewGuid(),
-                Finalidade = finalidade,
-            };
-            db.ConfiguracoesIa.Add(configuracaoExistente);
-        }
-
-        configuracaoExistente.Provedor = input.Provedor;
-        configuracaoExistente.Modelo = input.Modelo.Trim();
-        configuracaoExistente.Ativo = input.Ativo;
-        configuracaoExistente.TimeoutSegundos = input.TimeoutSegundos;
-        configuracaoExistente.AtualizadoPorId = usuarioId;
-
-        if (chaveAlterada)
-        {
-            configuracaoExistente.ApiKey = input.NovaApiKey;
-        }
-
-        await db.SaveChangesAsync();
-
-        // Nunca loga a chave em si — só se ela mudou ou não.
-        await auditoria.RegistrarAsync(usuarioId, "AlterarConfiguracaoIa", nameof(ErpFinanceiro.Domain.ConfiguracaoIa),
-            configuracaoExistente.Id, null,
-            new { Finalidade = finalidade.ToString(), configuracaoExistente.Provedor, configuracaoExistente.Modelo, configuracaoExistente.Ativo, ChaveAlterada = chaveAlterada });
-
-        return ResultadoOperacao.Ok();
+            Ativo = ativo,
+            Provedor = provedor,
+            Modelo = modelo,
+            ApiKey = apiKey,
+            TimeoutSegundos = timeout,
+        });
     }
 
     public async Task<ResultadoOperacao> TestarConexaoAsync(FinalidadeConfiguracaoIa finalidade)
     {
-        var config = await db.ConfiguracoesIa.FirstOrDefaultAsync(c => c.Finalidade == finalidade);
-        if (config is null || !config.Ativo)
-        {
-            return ResultadoOperacao.Falha("Configuração inativa ou não cadastrada.");
-        }
-
         if (finalidade == FinalidadeConfiguracaoIa.Documentos)
         {
-            return await TestarServicoDocumentosAsync();
+            var resultadoServico = await TestarServicoDocumentosAsync();
+            if (!resultadoServico.Sucesso)
+            {
+                return resultadoServico;
+            }
         }
 
-        if (string.IsNullOrWhiteSpace(config.ApiKey))
+        var config = await ObterAsync(finalidade);
+        if (config is not { Ativo: true })
         {
-            return ResultadoOperacao.Falha("Cadastre uma chave de API antes de testar.");
+            return ResultadoOperacao.Falha(
+                $"Configuração ausente, incompleta ou inativa nas variáveis de ambiente (Ia__{finalidade}__Provedor/Modelo/ApiKey).");
         }
 
-        return await TestarProvedorAsync(config.Provedor, config.ApiKey);
+        return await TestarProvedorAsync(config.Provedor, config.ApiKey!);
     }
 
     private async Task<ResultadoOperacao> TestarServicoDocumentosAsync()
@@ -163,19 +146,5 @@ public sealed class GerenciadorConfiguracaoIa(
         requisicao.Headers.Add("x-api-key", apiKey);
         requisicao.Headers.Add("anthropic-version", "2023-06-01");
         return http.SendAsync(requisicao);
-    }
-
-    private async Task<string?> ValidarAdministradorAsync(Guid usuarioId)
-    {
-        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
-        if (usuario is null)
-        {
-            return "Usuário não encontrado.";
-        }
-
-        var papeis = await userManager.GetRolesAsync(usuario);
-        return papeis.Contains(nameof(PerfilUsuario.Administrador))
-            ? null
-            : "Só usuários com perfil Administrador podem alterar a configuração de IA.";
     }
 }

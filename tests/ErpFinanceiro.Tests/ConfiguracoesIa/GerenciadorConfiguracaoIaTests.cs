@@ -1,144 +1,126 @@
-using ErpFinanceiro.Application.ConfiguracoesIa;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.ConfiguracoesIa;
-using ErpFinanceiro.Infrastructure.Data;
-using ErpFinanceiro.Tests.Fixtures;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Configuration;
 
 namespace ErpFinanceiro.Tests.ConfiguracoesIa;
 
 public class GerenciadorConfiguracaoIaTests
 {
-    private static UserManager<Usuario> CriarUserManager(AppDbContext db)
+    private static GerenciadorConfiguracaoIa Criar(params (string Chave, string Valor)[] configuracoes)
     {
-        var store = new UserStore<Usuario, IdentityRole<Guid>, AppDbContext, Guid>(db);
-        return new UserManager<Usuario>(store, null!, new PasswordHasher<Usuario>(), [], [], null!, null!, null!,
-            new NullLogger<UserManager<Usuario>>());
+        var configuracao = new ConfigurationBuilder()
+            .AddInMemoryCollection(configuracoes.Select(c => new KeyValuePair<string, string?>(c.Chave, c.Valor)))
+            .Build();
+
+        return new GerenciadorConfiguracaoIa(new HttpClient(), configuracao);
     }
 
-    private static async Task<Usuario> CriarUsuarioComPapelAsync(AppDbContext db, UserManager<Usuario> userManager, string papel)
+    [Fact]
+    public async Task ObterAsync_com_variaveis_completas_devolve_configuracao_ativa()
     {
-        if (!db.Roles.Any(r => r.Name == papel))
+        var gerenciador = Criar(
+            ("Ia:Chat:Provedor", "Gemini"),
+            ("Ia:Chat:Modelo", "gemini-2.5-flash"),
+            ("Ia:Chat:ApiKey", "chave-teste"));
+
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
+
+        Assert.NotNull(config);
+        Assert.True(config!.Ativo);
+        Assert.Equal(ProvedorIa.Gemini, config.Provedor);
+        Assert.Equal("gemini-2.5-flash", config.Modelo);
+        Assert.Equal("chave-teste", config.ApiKey);
+        Assert.Equal(90, config.TimeoutSegundos); // default quando TimeoutSegundos não é setado
+    }
+
+    [Fact]
+    public async Task ObterAsync_sem_nenhuma_variavel_devolve_null()
+    {
+        var gerenciador = Criar();
+
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
+
+        Assert.Null(config);
+    }
+
+    [Theory]
+    [InlineData("Ia:Chat:Provedor")]
+    [InlineData("Ia:Chat:Modelo")]
+    [InlineData("Ia:Chat:ApiKey")]
+    public async Task ObterAsync_com_variavel_obrigatoria_faltando_devolve_null(string chaveFaltante)
+    {
+        var completas = new Dictionary<string, string>
         {
-            db.Roles.Add(new IdentityRole<Guid> { Id = Guid.NewGuid(), Name = papel, NormalizedName = papel });
-            await db.SaveChangesAsync();
-        }
+            ["Ia:Chat:Provedor"] = "Gemini",
+            ["Ia:Chat:Modelo"] = "gemini-2.5-flash",
+            ["Ia:Chat:ApiKey"] = "chave-teste",
+        };
+        completas.Remove(chaveFaltante);
 
-        var usuario = new Usuario { Id = Guid.NewGuid(), UserName = $"{papel}@teste.local", Email = $"{papel}@teste.local", Nome = papel };
-        await userManager.CreateAsync(usuario);
-        await userManager.AddToRoleAsync(usuario, papel);
-        return usuario;
-    }
+        var gerenciador = Criar(completas.Select(c => (c.Key, c.Value)).ToArray());
 
-    private sealed record Cenario(AppDbContext Db, GerenciadorConfiguracaoIa Gerenciador, Usuario Admin, Usuario Financeiro);
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
 
-    private static async Task<Cenario> PrepararAsync()
-    {
-        var db = AppDbContextFactory.CriarEmMemoria();
-        var userManager = CriarUserManager(db);
-        var auditoria = new RegistradorAuditoriaFalso();
-
-        var admin = await CriarUsuarioComPapelAsync(db, userManager, nameof(PerfilUsuario.Administrador));
-        var financeiro = await CriarUsuarioComPapelAsync(db, userManager, nameof(PerfilUsuario.Financeiro));
-
-        // IConfiguration não é usado nos testes abaixo (só entra em
-        // TestarConexaoAsync, que faz chamada de rede real — fora do
-        // escopo de teste unitário aqui).
-        var gerenciador = new GerenciadorConfiguracaoIa(db, auditoria, userManager, new HttpClient(), null!);
-
-        return new Cenario(db, gerenciador, admin, financeiro);
+        Assert.Null(config);
     }
 
     [Fact]
-    public async Task SalvarAsync_sem_papel_administrador_e_recusado()
+    public async Task ObterAsync_com_provedor_nao_reconhecido_devolve_null()
     {
-        var c = await PrepararAsync();
-        var input = new ConfiguracaoIaInput(ProvedorIa.Gemini, "gemini-2.5-flash", "chave-teste", true, 90);
+        var gerenciador = Criar(
+            ("Ia:Chat:Provedor", "NaoExiste"),
+            ("Ia:Chat:Modelo", "algum-modelo"),
+            ("Ia:Chat:ApiKey", "chave"));
 
-        var resultado = await c.Gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Documentos, input, c.Financeiro.Id);
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
 
-        Assert.False(resultado.Sucesso);
-        Assert.Empty(await c.Db.ConfiguracoesIa.ToListAsync());
+        Assert.Null(config);
     }
 
     [Fact]
-    public async Task SalvarAsync_como_administrador_cria_a_linha()
+    public async Task ObterAsync_com_ativo_false_explicito_desliga_mesmo_com_chave_presente()
     {
-        var c = await PrepararAsync();
-        var input = new ConfiguracaoIaInput(ProvedorIa.Gemini, "gemini-2.5-flash", "chave-teste", true, 90);
+        var gerenciador = Criar(
+            ("Ia:Chat:Provedor", "Gemini"),
+            ("Ia:Chat:Modelo", "gemini-2.5-flash"),
+            ("Ia:Chat:ApiKey", "chave-teste"),
+            ("Ia:Chat:Ativo", "false"));
 
-        var resultado = await c.Gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Documentos, input, c.Admin.Id);
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
 
-        Assert.True(resultado.Sucesso);
-        var salvo = await c.Db.ConfiguracoesIa.AsNoTracking().SingleAsync(x => x.Finalidade == FinalidadeConfiguracaoIa.Documentos);
-        Assert.Equal(ProvedorIa.Gemini, salvo.Provedor);
-        Assert.Equal("gemini-2.5-flash", salvo.Modelo);
-        Assert.True(salvo.Ativo);
-        Assert.Equal("chave-teste", salvo.ApiKey);
+        Assert.NotNull(config);
+        Assert.False(config!.Ativo);
     }
 
     [Fact]
-    public async Task SalvarAsync_com_NovaApiKey_nula_mantem_a_chave_existente()
+    public async Task ObterAsync_respeita_timeout_customizado()
     {
-        var c = await PrepararAsync();
-        var primeiraChave = new ConfiguracaoIaInput(ProvedorIa.Gemini, "gemini-2.5-flash", "chave-original", true, 90);
-        await c.Gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Chat, primeiraChave, c.Admin.Id);
+        var gerenciador = Criar(
+            ("Ia:Documentos:Provedor", "OpenAi"),
+            ("Ia:Documentos:Modelo", "gpt-4o-mini"),
+            ("Ia:Documentos:ApiKey", "chave"),
+            ("Ia:Documentos:TimeoutSegundos", "120"));
 
-        var semTrocarChave = new ConfiguracaoIaInput(ProvedorIa.Gemini, "gemini-2.5-pro", null, true, 120);
-        var resultado = await c.Gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Chat, semTrocarChave, c.Admin.Id);
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Documentos);
 
-        Assert.True(resultado.Sucesso);
-        var salvo = await c.Db.ConfiguracoesIa.AsNoTracking().SingleAsync(x => x.Finalidade == FinalidadeConfiguracaoIa.Chat);
-        Assert.Equal("chave-original", salvo.ApiKey);
-        Assert.Equal("gemini-2.5-pro", salvo.Modelo);
-        Assert.Equal(120, salvo.TimeoutSegundos);
+        Assert.Equal(120, config!.TimeoutSegundos);
     }
 
     [Fact]
-    public async Task SalvarAsync_chave_cifrada_da_roundtrip_correto()
+    public async Task ObterAsync_duas_finalidades_sao_independentes()
     {
-        var c = await PrepararAsync();
-        var input = new ConfiguracaoIaInput(ProvedorIa.Gemini, "gemini-2.5-flash", "minha-chave-secreta-123", true, 90);
-        await c.Gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Documentos, input, c.Admin.Id);
+        var gerenciador = Criar(
+            ("Ia:Documentos:Provedor", "Gemini"),
+            ("Ia:Documentos:Modelo", "gemini-2.5-flash"),
+            ("Ia:Documentos:ApiKey", "chave-doc"),
+            ("Ia:Chat:Provedor", "Anthropic"),
+            ("Ia:Chat:Modelo", "claude-opus-5"),
+            ("Ia:Chat:ApiKey", "chave-chat"));
 
-        // A leitura via EF decifra automaticamente (HasConversion) — o
-        // valor em memória é sempre texto puro; o que fica cifrado é só o
-        // que vai pro banco. Reabrir o contexto simula uma nova requisição.
-        var obtido = await c.Gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Documentos);
-
-        Assert.NotNull(obtido);
-        Assert.Equal("minha-chave-secreta-123", obtido!.ApiKey);
-    }
-
-    [Fact]
-    public async Task SalvarAsync_duas_finalidades_ficam_independentes()
-    {
-        var c = await PrepararAsync();
-        await c.Gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Documentos,
-            new ConfiguracaoIaInput(ProvedorIa.Gemini, "gemini-2.5-flash", "chave-doc", true, 90), c.Admin.Id);
-        await c.Gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Chat,
-            new ConfiguracaoIaInput(ProvedorIa.OpenAi, "gpt-4o-mini", "chave-chat", false, 60), c.Admin.Id);
-
-        var documentos = await c.Gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Documentos);
-        var chat = await c.Gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
+        var documentos = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Documentos);
+        var chat = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
 
         Assert.Equal(ProvedorIa.Gemini, documentos!.Provedor);
-        Assert.Equal(ProvedorIa.OpenAi, chat!.Provedor);
-        Assert.True(documentos.Ativo);
-        Assert.False(chat.Ativo);
-    }
-
-    [Fact]
-    public async Task SalvarAsync_sem_modelo_e_recusado()
-    {
-        var c = await PrepararAsync();
-        var input = new ConfiguracaoIaInput(ProvedorIa.Gemini, "  ", "chave", true, 90);
-
-        var resultado = await c.Gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Documentos, input, c.Admin.Id);
-
-        Assert.False(resultado.Sucesso);
+        Assert.Equal(ProvedorIa.Anthropic, chat!.Provedor);
     }
 }
