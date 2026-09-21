@@ -73,7 +73,7 @@ else
 
                         @if (!string.IsNullOrEmpty(documentos.Mensagem))
                         {
-                            <div class="alert @(documentos.MensagemEhErro ? "alert-danger" : "alert-success") py-2">@documentos.Mensagem</div>
+                            <div class="alert @(documentos.MensagemEhErro ? "alert-danger" : documentos.MensagemEhAviso ? "alert-warning" : "alert-success") py-2">@documentos.Mensagem</div>
                         }
 
                         <button type="submit" class="btn btn-primary">Salvar</button>
@@ -131,7 +131,7 @@ else
 
                         @if (!string.IsNullOrEmpty(chat.Mensagem))
                         {
-                            <div class="alert @(chat.MensagemEhErro ? "alert-danger" : "alert-success") py-2">@chat.Mensagem</div>
+                            <div class="alert @(chat.MensagemEhErro ? "alert-danger" : chat.MensagemEhAviso ? "alert-warning" : "alert-success") py-2">@chat.Mensagem</div>
                         }
 
                         <button type="submit" class="btn btn-primary">Salvar</button>
@@ -182,6 +182,7 @@ else
     {
         secao.Mensagem = null;
         secao.MensagemEhErro = false;
+        secao.MensagemEhAviso = false;
 
         var input = new ConfiguracaoIaInput(
             secao.Modelo.Provedor,
@@ -204,7 +205,19 @@ else
             secao.Modelo.NovaApiKey = "";
         }
 
-        secao.Mensagem = "Configuração salva.";
+        // "Salvo" e "em uso" não são a mesma coisa — Ativo desmarcado é uma
+        // configuração válida (ex.: chave cadastrada com antecedência, ainda
+        // não em uso), mas "Configuração salva." sozinho não deixava claro
+        // que nada ia funcionar até marcar Ativo, o que já causou confusão.
+        if (secao.Modelo.Ativo)
+        {
+            secao.Mensagem = "Configuração salva e ativa.";
+        }
+        else
+        {
+            secao.Mensagem = "Configuração salva, mas está INATIVA — marque \"Ativo\" e salve de novo para este recurso funcionar.";
+            secao.MensagemEhAviso = true;
+        }
     }
 
     private async Task TestarAsync(SecaoFinalidade secao)
@@ -228,6 +241,7 @@ else
         public bool Testando { get; set; }
         public string? Mensagem { get; set; }
         public bool MensagemEhErro { get; set; }
+        public bool MensagemEhAviso { get; set; }
     }
 
     private sealed class FormularioModelo
