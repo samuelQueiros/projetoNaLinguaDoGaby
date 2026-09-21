@@ -78,7 +78,16 @@ public sealed class AgenteChatIaGemini(HttpClient http, ExecutorFerramentasChatI
                         ["parts"] = new JsonArray { new JsonObject { ["text"] = SistemaPrompt } },
                     },
                     ["tools"] = new JsonArray { new JsonObject { ["functionDeclarations"] = ConstruirDeclaracoes() } },
-                    ["generationConfig"] = new JsonObject { ["temperature"] = 0 },
+                    // thinkingBudget=0 desliga o "pensamento" interno do Gemini
+                    // (não confundir com o texto da resposta) — é o maior custo
+                    // de latência num chat de consulta simples como este, que
+                    // não precisa de raciocínio profundo. Modelos que não têm
+                    // essa opção (ex.: geração anterior ao 2.5) ignoram o campo.
+                    ["generationConfig"] = new JsonObject
+                    {
+                        ["temperature"] = 0,
+                        ["thinkingConfig"] = new JsonObject { ["thinkingBudget"] = 0 },
+                    },
                 };
 
                 // A chave vai no header x-goog-api-key, não na query string —
