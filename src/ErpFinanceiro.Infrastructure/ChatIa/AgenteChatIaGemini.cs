@@ -120,22 +120,29 @@ public sealed class AgenteChatIaGemini(HttpClient http, ExecutorFerramentasChatI
 
                 if (parte.FunctionCall is { Name: not null } chamada)
                 {
+                    // thoughtSignature (quando o modelo pensou antes de chamar a
+                    // ferramenta) precisa voltar exatamente como veio no próximo
+                    // turno — sem isso o Gemini rejeita com 400 "Function call is
+                    // missing a thought_signature" a partir da segunda rodada.
+                    var parteEco = new JsonObject
+                    {
+                        ["functionCall"] = new JsonObject
+                        {
+                            ["name"] = chamada.Name,
+                            ["args"] = chamada.Args.ValueKind == JsonValueKind.Undefined
+                                ? new JsonObject()
+                                : JsonNode.Parse(chamada.Args.GetRawText()),
+                        },
+                    };
+                    if (!string.IsNullOrEmpty(parte.ThoughtSignature))
+                    {
+                        parteEco["thoughtSignature"] = parte.ThoughtSignature;
+                    }
+
                     contents.Add(new JsonObject
                     {
                         ["role"] = "model",
-                        ["parts"] = new JsonArray
-                        {
-                            new JsonObject
-                            {
-                                ["functionCall"] = new JsonObject
-                                {
-                                    ["name"] = chamada.Name,
-                                    ["args"] = chamada.Args.ValueKind == JsonValueKind.Undefined
-                                        ? new JsonObject()
-                                        : JsonNode.Parse(chamada.Args.GetRawText()),
-                                },
-                            },
-                        },
+                        ["parts"] = new JsonArray { parteEco },
                     });
 
                     var resultado = await executor.ExecutarAsync(chamada.Name, chamada.Args, usuarioId, ct);
@@ -242,7 +249,8 @@ public sealed class AgenteChatIaGemini(HttpClient http, ExecutorFerramentasChatI
 
     private sealed record ParteDto(
         [property: JsonPropertyName("text")] string? Text,
-        [property: JsonPropertyName("functionCall")] FunctionCallDto? FunctionCall);
+        [property: JsonPropertyName("functionCall")] FunctionCallDto? FunctionCall,
+        [property: JsonPropertyName("thoughtSignature")] string? ThoughtSignature);
 
     private sealed record FunctionCallDto(
         [property: JsonPropertyName("name")] string? Name,
