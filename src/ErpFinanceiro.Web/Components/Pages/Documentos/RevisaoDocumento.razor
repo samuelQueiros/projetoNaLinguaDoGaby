@@ -321,6 +321,19 @@ else
 
     private async Task AprovarAsync()
     {
+        // Guarda contra clique duplo: em Blazor Server o disabled="@ocupado"
+        // do botão só chega no navegador depois de um round-trip ao
+        // servidor — um segundo clique rápido (fácil de acontecer num botão
+        // grande) disparava uma segunda submissão antes da primeira travar
+        // o botão. A segunda chamada then encontrava o documento já
+        // Aprovado pela primeira e devolvia "só é possível aprovar um
+        // documento que está aguardando revisão", mesmo a revisão tendo
+        // funcionado — um bug real, não um problema de mensagem.
+        if (ocupado)
+        {
+            return;
+        }
+
         erro = null;
         if (modelo.FornecedorId == Guid.Empty)
         {
@@ -344,6 +357,13 @@ else
             if (!resultado.Operacao.Sucesso || resultado.Conta is null)
             {
                 erro = string.Join("; ", resultado.Operacao.Erros);
+                // Busca o estado real de novo — se a falha foi porque o
+                // documento não está mais aguardando revisão (outra aba,
+                // outro Administrador), a tela troca sozinha pro aviso
+                // correto em vez de continuar mostrando o formulário como
+                // se nada tivesse mudado (o que contradizia a mensagem
+                // de erro acima dela).
+                documento = await Gerenciador.ObterAsync(Id);
                 return;
             }
 
@@ -357,6 +377,11 @@ else
 
     private async Task RejeitarAsync()
     {
+        if (ocupado)
+        {
+            return;
+        }
+
         erro = null;
         ocupado = true;
         try
@@ -365,6 +390,7 @@ else
             if (!resultado.Sucesso)
             {
                 erro = string.Join("; ", resultado.Erros);
+                documento = await Gerenciador.ObterAsync(Id);
                 return;
             }
 

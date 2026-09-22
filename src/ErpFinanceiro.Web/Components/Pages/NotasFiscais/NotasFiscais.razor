@@ -148,15 +148,19 @@ else
                         </div>
                         @if (editandoId is Guid nfId)
                         {
+                            @if (recemCriada)
+                            {
+                                <div class="alert alert-success mt-3">Nota fiscal salva! Anexe o PDF/XML abaixo — ou feche esta janela e anexe depois.</div>
+                            }
                             <PainelAnexos EntidadeTipo="EntidadeAnexo.NotaFiscal" EntidadeId="nfId" />
                         }
                         else
                         {
-                            <p class="text-muted mt-3"><small>Salve a nota fiscal para anexar PDF/XML.</small></p>
+                            <p class="text-muted mt-3"><small>Você poderá anexar o PDF/XML assim que salvar os dados abaixo.</small></p>
                         }
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="() => formularioAberto = false">Cancelar</button>
+                        <button type="button" class="btn btn-secondary" @onclick="() => formularioAberto = false">@(recemCriada ? "Concluir" : "Cancelar")</button>
                         <button type="submit" class="btn btn-primary">Salvar</button>
                     </div>
                 </EditForm>
@@ -177,6 +181,7 @@ else
 
     private bool formularioAberto;
     private Guid? editandoId;
+    private bool recemCriada;
     private Modelo modelo = new();
     private string? erro;
     private Guid usuarioId;
@@ -207,6 +212,7 @@ else
     private void AbrirFormulario(NotaFiscal? nf)
     {
         erro = null;
+        recemCriada = false;
         editandoId = nf?.Id;
         modelo = nf is null
             ? new Modelo { Emissao = DateTime.Today }
@@ -240,17 +246,35 @@ else
             modelo.CentroCustoId,
             modelo.Observacoes);
 
-        var resultado = editandoId is null
-            ? (await Gerenciador.CriarAsync(input, usuarioId)).Operacao
-            : await Gerenciador.EditarAsync(editandoId.Value, input, usuarioId);
-
-        if (!resultado.Sucesso)
+        if (editandoId is null)
         {
-            erro = string.Join("; ", resultado.Erros);
-            return;
+            // Cria e mantém o modal aberto (em vez de fechar) — deixa o
+            // painel de anexo aparecer na hora, sem precisar fechar e abrir
+            // de novo em "Editar" só pra anexar o PDF/XML (achado de UX: a
+            // nota já salvava sem o arquivo, mas só dava pra anexar depois
+            // de reabrir).
+            var criacao = await Gerenciador.CriarAsync(input, usuarioId);
+            if (!criacao.Operacao.Sucesso || criacao.Entidade is null)
+            {
+                erro = string.Join("; ", criacao.Operacao.Erros);
+                return;
+            }
+
+            editandoId = criacao.Entidade.Id;
+            recemCriada = true;
+        }
+        else
+        {
+            var resultado = await Gerenciador.EditarAsync(editandoId.Value, input, usuarioId);
+            if (!resultado.Sucesso)
+            {
+                erro = string.Join("; ", resultado.Erros);
+                return;
+            }
+
+            formularioAberto = false;
         }
 
-        formularioAberto = false;
         await BuscarAsync();
     }
 
