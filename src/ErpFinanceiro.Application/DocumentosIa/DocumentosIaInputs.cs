@@ -23,9 +23,43 @@ public sealed record RevisaoDocumentoInput(
     decimal Multa,
     Guid? FormaPagamentoId);
 
+/// <summary>
+/// Filtro da Central de Documentos. <see cref="Busca"/> procura em nome do
+/// arquivo, resumo e texto extraído (ILIKE — não é busca full-text, mas
+/// cobre nome/fornecedor/CNPJ/conteúdo sem precisar indexar o jsonb de
+/// <see cref="DocumentoImportado.Campos"/>, que não é query-able pelo EF).
+/// <see cref="Pagina"/>/<see cref="TamanhoPagina"/> só valem para
+/// <see cref="IGerenciadorDocumentosImportados.ListarPaginadoAsync"/> — o
+/// <see cref="IGerenciadorDocumentosImportados.ListarAsync"/> "clássico"
+/// (usado pelo dashboard e pelo agente de chat) continua devolvendo tudo
+/// que bate no filtro, sem paginar.
+/// </summary>
 public sealed record FiltroDocumentosImportados(
     StatusImportacaoDocumento? Status = null,
-    Guid? EnviadoPorId = null);
+    Guid? EnviadoPorId = null,
+    string? Busca = null,
+    DateOnly? DataInicial = null,
+    DateOnly? DataFinal = null,
+    TipoDocumentoDetectado? TipoDetectado = null,
+    /// <summary>true = só Status=Falha; false = exclui Falha; null = não filtra.</summary>
+    bool? ComErro = null,
+    int Pagina = 1,
+    int TamanhoPagina = 20);
+
+public sealed record ResultadoPaginado<T>(IReadOnlyList<T> Itens, int Total, int Pagina, int TamanhoPagina)
+{
+    public int TotalPaginas => TamanhoPagina <= 0 ? 1 : Math.Max(1, (int)Math.Ceiling(Total / (double)TamanhoPagina));
+}
+
+/// <summary>
+/// Contagens agregadas no banco (não sobre a página atual) para os
+/// indicadores no topo da Central de Documentos.
+/// </summary>
+public sealed record IndicadoresDocumentosImportados(
+    int Total,
+    int AguardandoRevisao,
+    int ComErro,
+    int EmProcessamento);
 
 public sealed record FalhaEnvioDocumento(string NomeArquivo, string Motivo);
 

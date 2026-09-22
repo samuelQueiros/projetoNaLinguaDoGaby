@@ -61,17 +61,39 @@ public sealed class LeitorDocumentosHttp(
 
             using var resposta = await http.PostAsync("extrair", form, ct);
 
-            if (resposta.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity)
+            // Mensagens distintas por causa (item "tratamento de erros" do
+            // escopo) — cada status do contrato HTTP (ver README do serviço
+            // Python) vira uma frase que ajuda quem revisa a decidir o que
+            // fazer, sem expor corpo/stack do serviço interno (log tem o
+            // detalhe completo).
+            if (!resposta.IsSuccessStatusCode)
             {
-                return ResultadoLeituraDocumento.Falha("Documento ilegível para o serviço de leitura.");
-            }
+                var corpo = await LerCorpoParaLogAsync(resposta, ct);
+                logger.LogError(
+                    "Serviço de leitura de documentos respondeu {Status} para '{Arquivo}': {Corpo}",
+                    (int)resposta.StatusCode, nomeArquivo, corpo);
 
-            resposta.EnsureSuccessStatusCode();
+                return resposta.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.UnprocessableEntity =>
+                        ResultadoLeituraDocumento.Falha("Documento ilegível — não encontrei texto aproveitável (PDF escaneado sem OCR, imagem corrompida ou arquivo vazio)."),
+                    System.Net.HttpStatusCode.UnsupportedMediaType =>
+                        ResultadoLeituraDocumento.Falha("Formato de arquivo não suportado pela leitura automática."),
+                    System.Net.HttpStatusCode.RequestEntityTooLarge =>
+                        ResultadoLeituraDocumento.Falha("Arquivo excede o tamanho máximo aceito pela leitura automática."),
+                    System.Net.HttpStatusCode.BadRequest =>
+                        ResultadoLeituraDocumento.Falha("Não consegui ler este documento — configuração de leitura inválida."),
+                    System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden =>
+                        ResultadoLeituraDocumento.Falha("O serviço de leitura de documentos recusou a chamada — problema de configuração interna, avise um Administrador."),
+                    _ => ResultadoLeituraDocumento.Falha("O serviço de leitura de documentos falhou ao processar este arquivo — tente de novo em instantes."),
+                };
+            }
 
             var payload = await resposta.Content.ReadFromJsonAsync<ExtracaoResposta>(JsonOpts, ct);
             if (payload is null)
             {
-                return ResultadoLeituraDocumento.Falha("Resposta vazia do serviço de leitura.");
+                logger.LogError("Resposta vazia (200 sem corpo JSON) do serviço de leitura para '{Arquivo}'.", nomeArquivo);
+                return ResultadoLeituraDocumento.Falha("O serviço de leitura devolveu uma resposta inesperada — tente de novo em instantes.");
             }
 
             var tipo = Enum.TryParse<TipoDocumentoDetectado>(payload.TipoDetectado, ignoreCase: true, out var t)
@@ -82,12 +104,28 @@ public sealed class LeitorDocumentosHttp(
                 .Select(c => new CampoLido(c.Nome ?? string.Empty, c.Valor, c.Confianca))
                 .ToList();
 
-            return new ResultadoLeituraDocumento(tipo, payload.ConfiancaGeral, campos);
+            return new ResultadoLeituraDocumento(tipo, payload.ConfiancaGeral, campos, Texto: payload.Texto);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            logger.LogError(ex, "Falha ao chamar o serviço de leitura de documentos para '{Arquivo}'.", nomeArquivo);
-            return ResultadoLeituraDocumento.Falha($"Serviço de leitura indisponível: {ex.Message}");
+            // ex.Message aqui pode conter host/porta internos (ex.: "target
+            // machine actively refused it (servico-documentos:8000)") — só
+            // no log, nunca pro usuário (mesmo raciocínio já aplicado ao
+            // catch-all de GerenciadorDocumentosImportados.ProcessarAsync).
+            logger.LogError(ex, "Falha de comunicação com o serviço de leitura de documentos para '{Arquivo}'.", nomeArquivo);
+            return ResultadoLeituraDocumento.Falha("Não consegui falar com o serviço de leitura de documentos agora — tente de novo em instantes.");
+        }
+    }
+
+    private static async Task<string> LerCorpoParaLogAsync(HttpResponseMessage resposta, CancellationToken ct)
+    {
+        try
+        {
+            return await resposta.Content.ReadAsStringAsync(ct);
+        }
+        catch (Exception)
+        {
+            return "(corpo indisponível)";
         }
     }
 
@@ -102,7 +140,8 @@ public sealed class LeitorDocumentosHttp(
     private sealed record ExtracaoResposta(
         [property: JsonPropertyName("tipoDetectado")] string? TipoDetectado,
         [property: JsonPropertyName("confiancaGeral")] decimal ConfiancaGeral,
-        [property: JsonPropertyName("campos")] List<CampoResposta>? Campos);
+        [property: JsonPropertyName("campos")] List<CampoResposta>? Campos,
+        [property: JsonPropertyName("texto")] string? Texto);
 
     private sealed record CampoResposta(
         [property: JsonPropertyName("nome")] string? Nome,

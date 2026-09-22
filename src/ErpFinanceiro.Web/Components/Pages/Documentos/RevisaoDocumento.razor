@@ -53,9 +53,37 @@ else
                 <iframe src="/documentos-importados/@documento.Id/arquivo" title="@documento.NomeArquivo"></iframe>
             }
             <a class="revisao__abrir" href="/documentos-importados/@documento.Id/arquivo" target="_blank">Abrir em nova aba ↗</a>
+
+            <div class="revisao__processamento">
+                <h2 class="revisao__secao-titulo">Processamento</h2>
+                <dl class="processamento-lista">
+                    <dt>Status</dt>
+                    <dd>Pronto para revisar</dd>
+                    <dt>Tipo detectado</dt>
+                    <dd>@(documento.TipoDetectado == TipoDocumentoDetectado.NaoIdentificado ? "Não identificado" : documento.TipoDetectado.ToString())</dd>
+                    <dt>Confiança da leitura</dt>
+                    <dd>@((documento.ConfiancaGeral * 100).ToString("0")) %</dd>
+                    <dt>Enviado por</dt>
+                    <dd>@(documento.EnviadoPor?.Nome ?? "—") em @documento.CriadoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+                    @if (documento.ProcessadoEm is DateTime processadoEm)
+                    {
+                        <dt>Lido em</dt>
+                        <dd>@processadoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd>
+                    }
+                </dl>
+            </div>
         </div>
 
         <div class="revisao__form">
+            @if (!string.IsNullOrEmpty(documento.Resumo))
+            {
+                <div class="revisao__resumo">
+                    <h2 class="revisao__secao-titulo">Resumo</h2>
+                    <p>@documento.Resumo</p>
+                </div>
+            }
+
+            <h2 class="revisao__secao-titulo">Informações</h2>
             <EditForm Model="modelo" OnValidSubmit="AprovarAsync">
                 <DataAnnotationsValidator />
 

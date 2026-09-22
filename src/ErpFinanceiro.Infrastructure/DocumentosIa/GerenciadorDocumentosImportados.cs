@@ -67,9 +67,19 @@ public sealed class GerenciadorDocumentosImportados(
                 // Extensão não permitida ou tamanho excedido (ArmazenamentoAnexosDisco.SalvarAsync)
                 // — um arquivo ruim no meio de um envio múltiplo não pode
                 // abortar os demais nem esconder que os outros já foram
-                // salvos (achado da auditoria de qualidade).
+                // salvos (achado da auditoria de qualidade). Mensagem já
+                // pensada pra tela (extensão/tamanho), sem detalhe interno.
                 logger.LogWarning(ex, "Falha ao enviar o arquivo {NomeArquivo} para a Central de Documentos.", arquivo.NomeArquivo);
                 falhas.Add(new FalhaEnvioDocumento(arquivo.NomeArquivo, ex.Message));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Falha de armazenamento (disco cheio, permissão, volume
+                // indisponível) — diferente de "arquivo ruim": aqui o
+                // problema é do servidor, não do que o usuário enviou.
+                // ex.Message pode conter caminho físico do servidor, só no log.
+                logger.LogError(ex, "Falha de armazenamento ao salvar {NomeArquivo}.", arquivo.NomeArquivo);
+                falhas.Add(new FalhaEnvioDocumento(arquivo.NomeArquivo, "Não consegui salvar este arquivo agora — tente de novo em instantes."));
             }
         }
 
@@ -111,6 +121,8 @@ public sealed class GerenciadorDocumentosImportados(
                 documento.Campos = resultado.Campos
                     .Select(c => new CampoExtraido { Nome = c.Nome, Valor = c.Valor, Confianca = c.Confianca })
                     .ToList();
+                documento.TextoExtraido = resultado.Texto;
+                documento.Resumo = GerarResumo(documento.TipoDetectado, documento.Campos);
                 documento.Status = StatusImportacaoDocumento.AguardandoRevisao;
                 documento.MensagemErro = null;
             }
@@ -160,6 +172,45 @@ public sealed class GerenciadorDocumentosImportados(
 
     public async Task<IReadOnlyList<DocumentoImportado>> ListarAsync(FiltroDocumentosImportados filtro)
     {
+        var query = ConstruirQuery(filtro);
+        return await query.OrderByDescending(d => d.CriadoEm).ToListAsync();
+    }
+
+    public async Task<ResultadoPaginado<DocumentoImportado>> ListarPaginadoAsync(FiltroDocumentosImportados filtro)
+    {
+        var query = ConstruirQuery(filtro);
+        var total = await query.CountAsync();
+
+        var pagina = Math.Max(1, filtro.Pagina);
+        var tamanho = filtro.TamanhoPagina <= 0 ? 20 : Math.Min(filtro.TamanhoPagina, 100);
+
+        var itens = await query
+            .OrderByDescending(d => d.CriadoEm)
+            .Skip((pagina - 1) * tamanho)
+            .Take(tamanho)
+            .ToListAsync();
+
+        return new ResultadoPaginado<DocumentoImportado>(itens, total, pagina, tamanho);
+    }
+
+    public async Task<IndicadoresDocumentosImportados> ObterIndicadoresAsync(Guid? enviadoPorId)
+    {
+        var query = db.DocumentosImportados.AsNoTracking().AsQueryable();
+        if (enviadoPorId is Guid uid)
+        {
+            query = query.Where(d => d.EnviadoPorId == uid);
+        }
+
+        return new IndicadoresDocumentosImportados(
+            Total: await query.CountAsync(),
+            AguardandoRevisao: await query.CountAsync(d => d.Status == StatusImportacaoDocumento.AguardandoRevisao),
+            ComErro: await query.CountAsync(d => d.Status == StatusImportacaoDocumento.Falha),
+            EmProcessamento: await query.CountAsync(d =>
+                d.Status == StatusImportacaoDocumento.Recebido || d.Status == StatusImportacaoDocumento.Processando));
+    }
+
+    private IQueryable<DocumentoImportado> ConstruirQuery(FiltroDocumentosImportados filtro)
+    {
         var query = db.DocumentosImportados.AsNoTracking()
             .Include(d => d.EnviadoPor)
             .AsQueryable();
@@ -174,7 +225,46 @@ public sealed class GerenciadorDocumentosImportados(
             query = query.Where(d => d.EnviadoPorId == enviadoPor);
         }
 
-        return await query.OrderByDescending(d => d.CriadoEm).ToListAsync();
+        if (filtro.TipoDetectado is TipoDocumentoDetectado tipo)
+        {
+            query = query.Where(d => d.TipoDetectado == tipo);
+        }
+
+        if (filtro.ComErro is true)
+        {
+            query = query.Where(d => d.Status == StatusImportacaoDocumento.Falha);
+        }
+        else if (filtro.ComErro is false)
+        {
+            query = query.Where(d => d.Status != StatusImportacaoDocumento.Falha);
+        }
+
+        if (filtro.DataInicial is DateOnly inicio)
+        {
+            var inicioUtc = inicio.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(d => d.CriadoEm >= inicioUtc);
+        }
+
+        if (filtro.DataFinal is DateOnly fim)
+        {
+            var fimUtc = fim.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+            query = query.Where(d => d.CriadoEm <= fimUtc);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Busca))
+        {
+            // ToLower().Contains() em vez de EF.Functions.ILike: traduz pra
+            // SQL igual no Postgres de produção (LOWER(coluna) LIKE ...) e
+            // continua avaliável em LINQ puro nos testes (InMemory provider
+            // não traduz funções específicas do Npgsql).
+            var busca = filtro.Busca.Trim().ToLowerInvariant();
+            query = query.Where(d =>
+                d.NomeArquivo.ToLower().Contains(busca) ||
+                (d.Resumo != null && d.Resumo.ToLower().Contains(busca)) ||
+                (d.TextoExtraido != null && d.TextoExtraido.ToLower().Contains(busca)));
+        }
+
+        return query;
     }
 
     public async Task<ResultadoContaPagar> AprovarAsync(Guid id, RevisaoDocumentoInput dados, Guid usuarioId)
@@ -277,6 +367,55 @@ public sealed class GerenciadorDocumentosImportados(
         return ResultadoOperacao.Ok();
     }
 
+    public async Task<ResultadoOperacao> ExcluirAsync(Guid id, Guid usuarioId)
+    {
+        var erroPermissao = await ValidarAdministradorAsync(usuarioId);
+        if (erroPermissao is not null)
+        {
+            return ResultadoOperacao.Falha(erroPermissao);
+        }
+
+        var documento = await db.DocumentosImportados.FirstOrDefaultAsync(d => d.Id == id);
+        if (documento is null)
+        {
+            return ResultadoOperacao.Falha("Documento não encontrado.");
+        }
+
+        if (documento.Status == StatusImportacaoDocumento.Aprovado)
+        {
+            return ResultadoOperacao.Falha(
+                "Este documento já virou uma conta a pagar — excluir apagaria o rastro de onde ela veio. " +
+                "Se precisa removê-lo da lista, trate a conta a pagar gerada em vez do documento.");
+        }
+
+        // Mesma ordem do GerenciadorAnexos.ExcluirAsync: apaga o arquivo
+        // físico antes da linha do banco — se o delete físico falhar
+        // (permissão, arquivo em uso), nada muda, em vez de deixar o banco
+        // sem o registro e um arquivo órfão em disco.
+        try
+        {
+            await storage.ExcluirAsync(documento.CaminhoArmazenamento);
+        }
+        catch (IOException ex)
+        {
+            logger.LogError(ex, "Falha ao excluir o arquivo físico do documento {DocumentoId} ({Caminho}).", documento.Id, documento.CaminhoArmazenamento);
+            return ResultadoOperacao.Falha("Não consegui excluir o arquivo — tente de novo em instantes.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.LogError(ex, "Falha ao excluir o arquivo físico do documento {DocumentoId} ({Caminho}).", documento.Id, documento.CaminhoArmazenamento);
+            return ResultadoOperacao.Falha("Não consegui excluir o arquivo — tente de novo em instantes.");
+        }
+
+        db.DocumentosImportados.Remove(documento);
+        await db.SaveChangesAsync();
+
+        await auditoria.RegistrarAsync(usuarioId, "ExcluirDocumento", nameof(DocumentoImportado), documento.Id,
+            new { documento.NomeArquivo, documento.Status }, null);
+
+        return ResultadoOperacao.Ok();
+    }
+
     private async Task<string?> ValidarAdministradorAsync(Guid usuarioId)
     {
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
@@ -289,6 +428,46 @@ public sealed class GerenciadorDocumentosImportados(
         return papeis.Contains(nameof(PerfilUsuario.Administrador))
             ? null
             : "Só usuários com perfil Administrador podem revisar a fila de documentos.";
+    }
+
+    /// <summary>
+    /// Resumo curto e determinístico a partir dos campos já extraídos —
+    /// sem chamar LLM (item "leitura sem IA" do escopo). Só concatena o
+    /// que já foi lido; se não achou nada, some sozinho (revisão manual).
+    /// </summary>
+    private static string? GerarResumo(TipoDocumentoDetectado tipo, List<CampoExtraido> campos)
+    {
+        string? Campo(string nome) => campos
+            .FirstOrDefault(c => string.Equals(c.Nome, nome, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(c.Valor))
+            ?.Valor;
+
+        var partes = new List<string>();
+
+        var descricaoTipo = tipo == TipoDocumentoDetectado.NaoIdentificado ? "Documento" : tipo.ToString();
+        partes.Add(descricaoTipo);
+
+        if (Campo("fornecedor") is { } fornecedor)
+        {
+            partes.Add($"de {fornecedor}");
+        }
+
+        if (Campo("valor") is { } valor)
+        {
+            partes.Add($"no valor de R$ {valor}");
+        }
+
+        if ((Campo("vencimento") ?? Campo("data")) is { } data)
+        {
+            partes.Add($"com data {data}");
+        }
+
+        if (Campo("numeroNota") is { } numero)
+        {
+            partes.Add($"(nº {numero})");
+        }
+
+        // Só o tipo, sem mais nenhum campo confiável — não vale como resumo.
+        return partes.Count > 1 ? string.Join(" ", partes) : null;
     }
 
     private static TipoDocumentoAnexo MapearTipoAnexo(TipoDocumentoDetectado tipo) => tipo switch

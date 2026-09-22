@@ -59,6 +59,47 @@ h1 {
     text-decoration: underline;
 }
 
+/* ---------- Resumo / Processamento ---------- */
+.revisao__secao-titulo {
+    font-size: .95rem;
+    font-weight: 700;
+    margin-bottom: .6rem;
+}
+
+.revisao__resumo {
+    margin-bottom: 1.25rem;
+    padding-bottom: 1.1rem;
+    border-bottom: 1px solid var(--cor-borda);
+}
+
+.revisao__resumo p {
+    margin: 0;
+    color: var(--cor-texto-suave);
+}
+
+.revisao__processamento {
+    margin-top: .5rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--cor-borda);
+}
+
+.processamento-lista {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: .25rem 1rem;
+    margin: 0;
+    font-size: .85rem;
+}
+
+.processamento-lista dt {
+    color: var(--cor-texto-suave);
+}
+
+.processamento-lista dd {
+    margin: 0;
+    font-weight: 500;
+}
+
 /* ---------- Formulário ---------- */
 .revisao__form {
     background-color: var(--cor-superficie);

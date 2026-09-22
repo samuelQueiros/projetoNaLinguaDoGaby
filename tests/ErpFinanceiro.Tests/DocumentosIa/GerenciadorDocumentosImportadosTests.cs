@@ -243,6 +243,95 @@ public class GerenciadorDocumentosImportadosTests
         Assert.False(resultado.Sucesso);
     }
 
+    [Fact]
+    public async Task ExcluirAsync_sem_papel_administrador_e_recusado()
+    {
+        var c = await PrepararAsync();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
+
+        var resultado = await c.Gerenciador.ExcluirAsync(doc.Id, c.Financeiro.Id);
+
+        Assert.False(resultado.Sucesso);
+        Assert.NotNull(await c.Db.DocumentosImportados.AsNoTracking().SingleOrDefaultAsync(d => d.Id == doc.Id));
+    }
+
+    [Fact]
+    public async Task ExcluirAsync_como_administrador_remove_registro_e_arquivo_fisico()
+    {
+        var c = await PrepararAsync();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
+        var caminho = doc.CaminhoArmazenamento;
+
+        var resultado = await c.Gerenciador.ExcluirAsync(doc.Id, c.Admin.Id);
+
+        Assert.True(resultado.Sucesso);
+        Assert.Null(await c.Db.DocumentosImportados.AsNoTracking().SingleOrDefaultAsync(d => d.Id == doc.Id));
+        Assert.DoesNotContain(caminho, c.Storage.Arquivos.Keys);
+    }
+
+    [Fact]
+    public async Task ExcluirAsync_recusa_documento_ja_aprovado()
+    {
+        var c = await PrepararAsync();
+        var doc = (await c.Gerenciador.EnviarAsync([ArquivoFalso()], c.Financeiro.Id)).Criados.Single();
+        await c.Gerenciador.ProcessarAsync(doc.Id);
+        await c.Gerenciador.AprovarAsync(doc.Id, RevisaoValida(c.Fornecedor.Id), c.Admin.Id);
+
+        var resultado = await c.Gerenciador.ExcluirAsync(doc.Id, c.Admin.Id);
+
+        Assert.False(resultado.Sucesso);
+        Assert.NotNull(await c.Db.DocumentosImportados.AsNoTracking().SingleOrDefaultAsync(d => d.Id == doc.Id));
+    }
+
+    [Fact]
+    public async Task ListarPaginadoAsync_pagina_no_banco_e_devolve_total_real()
+    {
+        var c = await PrepararAsync();
+        for (var i = 0; i < 5; i++)
+        {
+            await c.Gerenciador.EnviarAsync([ArquivoFalso($"doc{i}.pdf")], c.Financeiro.Id);
+        }
+
+        var pagina1 = await c.Gerenciador.ListarPaginadoAsync(new FiltroDocumentosImportados(TamanhoPagina: 2, Pagina: 1));
+        var pagina2 = await c.Gerenciador.ListarPaginadoAsync(new FiltroDocumentosImportados(TamanhoPagina: 2, Pagina: 2));
+
+        Assert.Equal(5, pagina1.Total);
+        Assert.Equal(3, pagina1.TotalPaginas);
+        Assert.Equal(2, pagina1.Itens.Count);
+        Assert.Equal(2, pagina2.Itens.Count);
+        Assert.Empty(pagina1.Itens.Select(d => d.Id).Intersect(pagina2.Itens.Select(d => d.Id)));
+    }
+
+    [Fact]
+    public async Task ObterIndicadoresAsync_conta_por_status_no_banco_todo_nao_so_na_pagina()
+    {
+        var c = await PrepararAsync(ResultadoLeituraDocumento.Falha("ilegível"));
+        await c.Gerenciador.EnviarAsync([ArquivoFalso("a.pdf"), ArquivoFalso("b.pdf")], c.Financeiro.Id);
+        var docs = (await c.Db.DocumentosImportados.ToListAsync());
+        foreach (var d in docs)
+        {
+            await c.Gerenciador.ProcessarAsync(d.Id);
+        }
+
+        var indicadores = await c.Gerenciador.ObterIndicadoresAsync(null);
+
+        Assert.Equal(2, indicadores.Total);
+        Assert.Equal(2, indicadores.ComErro);
+        Assert.Equal(0, indicadores.AguardandoRevisao);
+    }
+
+    [Fact]
+    public async Task ListarAsync_com_busca_filtra_por_nome_do_arquivo()
+    {
+        var c = await PrepararAsync();
+        await c.Gerenciador.EnviarAsync([ArquivoFalso("nota-fiscal-123.pdf"), ArquivoFalso("boleto-agua.pdf")], c.Financeiro.Id);
+
+        var resultado = await c.Gerenciador.ListarAsync(new FiltroDocumentosImportados(Busca: "nota-fiscal"));
+
+        var encontrado = Assert.Single(resultado);
+        Assert.Equal("nota-fiscal-123.pdf", encontrado.NomeArquivo);
+    }
+
     private static RevisaoDocumentoInput RevisaoValida(Guid fornecedorId) =>
         new(fornecedorId, "Despesa do comprovante", null, null,
             DateOnly.FromDateTime(DateTime.Today), 1530.00m, 0m, 0m, 0m, null);

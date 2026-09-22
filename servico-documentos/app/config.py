@@ -43,6 +43,13 @@ class Config(BaseSettings):
     # desproporcional de linhas depois de descompactado.
     xlsx_max_linhas: int = 50_000
 
+    # Teto de caracteres do texto integral devolvido em RespostaExtracao.texto
+    # (o .NET persiste isso em DocumentoImportado.TextoExtraido). O texto
+    # inteiro já é usado internamente pro regex/LLM sem esse corte — é só o
+    # que volta pro contrato HTTP e vai pro banco que é limitado, pra não
+    # armazenar/trafegar um PDF de centenas de páginas inteiro por engano.
+    texto_max_chars: int = 100_000
+
     # Segredo compartilhado esperado no header X-Internal-Token — sem ele
     # configurado (string vazia, padrão), o endpoint /extrair fica aberto
     # pra qualquer host que alcance a porta, como documentado na auditoria

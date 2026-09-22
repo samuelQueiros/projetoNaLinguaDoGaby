@@ -189,6 +189,7 @@ def processar(
         campos=campos_final,
         camposObrigatoriosPendentes=pendentes,
         avisos=avisos,
+        texto=doc.texto[: cfg.texto_max_chars],
     )
     log.info("[%s] fim em %dms — conf_geral=%.2f, pendentes=%s",
              lote_id, int((time.perf_counter() - t0) * 1000), conf_geral, pendentes)

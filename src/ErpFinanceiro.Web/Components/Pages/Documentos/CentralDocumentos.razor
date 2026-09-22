@@ -10,6 +10,7 @@
 @inject IGerenciadorDocumentosImportados Gerenciador
 @inject UserManager<Usuario> UserManager
 @inject NavigationManager NavigationManager
+@inject ILogger<CentralDocumentos> Logger
 
 <PageTitle>Central de Documentos</PageTitle>
 
@@ -19,9 +20,28 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
         </svg>
-        Leitura automática por IA
+        Leitura automática de documentos
     </div>
-    <p>Jogue aqui comprovantes, contratos e notas fiscais. Uma IA lê cada documento, extrai os dados e monta um rascunho — nada vira lançamento oficial sem um Administrador revisar e aprovar.</p>
+    <p>Jogue aqui comprovantes, contratos e notas fiscais. O sistema lê cada documento e extrai os dados automaticamente — nada vira lançamento oficial sem um Administrador revisar e aprovar.</p>
+</div>
+
+<div class="indicadores">
+    <div class="indicador">
+        <span class="indicador__valor">@(indicadores?.Total ?? 0)</span>
+        <span class="indicador__rotulo">Total</span>
+    </div>
+    <div class="indicador indicador--azul">
+        <span class="indicador__valor">@(indicadores?.EmProcessamento ?? 0)</span>
+        <span class="indicador__rotulo">Em leitura</span>
+    </div>
+    <div class="indicador indicador--verde">
+        <span class="indicador__valor">@(indicadores?.AguardandoRevisao ?? 0)</span>
+        <span class="indicador__rotulo">Aguardando revisão</span>
+    </div>
+    <div class="indicador indicador--vermelho">
+        <span class="indicador__valor">@(indicadores?.ComErro ?? 0)</span>
+        <span class="indicador__rotulo">Com erro</span>
+    </div>
 </div>
 
 <div class="dropzone @(arrastando ? "dropzone--ativo" : "") @(enviando ? "dropzone--ocupado" : "")"
@@ -75,14 +95,62 @@
     }
 </div>
 
-@if (documentos.Count == 0)
+<div class="filtros">
+    <input class="form-control form-control-sm filtros__busca" placeholder="Buscar por nome, fornecedor, CNPJ, conteúdo…"
+           value="@busca" @oninput="OnBuscaAlterada" />
+
+    <select class="form-select form-select-sm" @bind="statusFiltro" @bind:after="AplicarFiltrosAsync">
+        <option value="">Todos os status</option>
+        @foreach (var s in Enum.GetValues<StatusImportacaoDocumento>())
+        {
+            <option value="@s">@Descrever(s).Rotulo</option>
+        }
+    </select>
+
+    <select class="form-select form-select-sm" @bind="tipoFiltro" @bind:after="AplicarFiltrosAsync">
+        <option value="">Todos os tipos</option>
+        @foreach (var t in Enum.GetValues<TipoDocumentoDetectado>())
+        {
+            <option value="@t">@t</option>
+        }
+    </select>
+
+    <input type="date" class="form-control form-control-sm" title="De" @bind="dataInicial" @bind:after="AplicarFiltrosAsync" />
+    <input type="date" class="form-control form-control-sm" title="Até" @bind="dataFinal" @bind:after="AplicarFiltrosAsync" />
+
+    <label class="filtros__checkbox">
+        <input type="checkbox" @bind="somenteComErro" @bind:after="AplicarFiltrosAsync" />
+        Só com erro
+    </label>
+
+    @if (TemFiltroAtivo)
+    {
+        <button class="btn btn-link btn-sm" @onclick="LimparFiltrosAsync">Limpar filtros</button>
+    }
+</div>
+
+@if (carregando)
+{
+    <div class="vazio">
+        <span class="spinner-border"></span>
+        <p>Carregando…</p>
+    </div>
+}
+else if (documentos.Count == 0)
 {
     <div class="vazio">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 3v4a1 1 0 0 0 1 1h4" />
             <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
         </svg>
-        <p>Nenhum documento ainda.<br />Arraste o primeiro lá em cima 👆</p>
+        @if (TemFiltroAtivo)
+        {
+            <p>Nenhum documento encontrado com esses filtros.</p>
+        }
+        else
+        {
+            <p>Nenhum documento ainda.<br />Arraste o primeiro lá em cima 👆</p>
+        }
     </div>
 }
 else
@@ -110,6 +178,13 @@ else
                     {
                         <span class="doc-card__detalhe">@doc.MensagemErro</span>
                     }
+                    else if (!string.IsNullOrEmpty(doc.Resumo))
+                    {
+                        <span class="doc-card__detalhe">@doc.Resumo</span>
+                    }
+                    <span class="doc-card__meta">
+                        @doc.EnviadoPor?.Nome · @doc.CriadoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                    </span>
                 </span>
 
                 <span class="doc-card__acao">
@@ -132,28 +207,72 @@ else
                     {
                         <button class="btn btn-outline-primary" @onclick="() => ReprocessarAsync(doc.Id)">Tentar de novo</button>
                     }
+
+                    @if (doc.Status != StatusImportacaoDocumento.Aprovado)
+                    {
+                        <AuthorizeView Roles="Administrador" Context="excl">
+                            <Authorized>
+                                <button class="btn btn-link btn-sm text-danger" @onclick="() => PedirExclusao(doc.Id)">Excluir</button>
+                            </Authorized>
+                        </AuthorizeView>
+                    }
                 </span>
             </li>
         }
     </ul>
+
+    @if (totalPaginas > 1)
+    {
+        <div class="paginacao">
+            <button class="btn btn-outline-primary btn-sm" disabled="@(pagina <= 1)" @onclick="() => IrParaPaginaAsync(pagina - 1)">← Anterior</button>
+            <span class="paginacao__info">Página @pagina de @totalPaginas · @totalDocumentos documento(s)</span>
+            <button class="btn btn-outline-primary btn-sm" disabled="@(pagina >= totalPaginas)" @onclick="() => IrParaPaginaAsync(pagina + 1)">Próxima →</button>
+        </div>
+    }
 }
+
+<ConfirmacaoModal Visivel="confirmacaoVisivel"
+                  Titulo="Excluir documento"
+                  Mensagem="Tem certeza que deseja excluir este documento? O arquivo e a leitura feita pelo sistema serão apagados — a ação não pode ser desfeita."
+                  OnConfirmar="ConfirmarExclusaoAsync"
+                  OnCancelar="() => confirmacaoVisivel = false" />
 
 @code {
     private const long TamanhoMaximoUploadBytes = 25 * 1024 * 1024;
+    private const int TamanhoPagina = 20;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthState { get; set; }
 
     private List<DocumentoImportado> documentos = new();
+    private IndicadoresDocumentosImportados? indicadores;
     private Guid usuarioId;
     private bool ehAdministrador;
     private bool arrastando;
     private bool enviando;
+    private bool carregando = true;
     private int totalEnviando;
     private string? erro;
     private string? aviso;
 
+    // Filtros — aplicados no backend (ver GerenciadorDocumentosImportados.ConstruirQuery),
+    // não em memória, porque a lista pode crescer bastante com o tempo.
+    private string busca = string.Empty;
+    private string statusFiltro = string.Empty;
+    private string tipoFiltro = string.Empty;
+    private DateOnly? dataInicial;
+    private DateOnly? dataFinal;
+    private bool somenteComErro;
+    private int pagina = 1;
+    private int totalPaginas = 1;
+    private int totalDocumentos;
+
+    private Timer? debounceBusca;
     private PeriodicTimer? timer;
+
+    private bool TemFiltroAtivo =>
+        !string.IsNullOrWhiteSpace(busca) || !string.IsNullOrEmpty(statusFiltro) || !string.IsNullOrEmpty(tipoFiltro) ||
+        dataInicial is not null || dataFinal is not null || somenteComErro;
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,15 +301,79 @@ else
         }
     }
 
+    private Guid? EnviadoPorId => ehAdministrador ? null : usuarioId;
+
     private async Task RecarregarAsync()
     {
+        carregando = documentos.Count == 0;
+
         // Administrador vê a fila inteira (precisa revisar documentos de
         // qualquer pessoa); todo mundo mais vê só o que enviou — a tela
         // listava os documentos de todo mundo pra qualquer papel autenticado
         // antes disso, incluindo comprovantes/contratos ainda não revisados
         // (achado da auditoria de segurança).
-        var filtro = new FiltroDocumentosImportados(EnviadoPorId: ehAdministrador ? null : usuarioId);
-        documentos = (await Gerenciador.ListarAsync(filtro)).ToList();
+        var filtro = new FiltroDocumentosImportados(
+            Status: Enum.TryParse<StatusImportacaoDocumento>(statusFiltro, out var s) ? s : null,
+            EnviadoPorId: EnviadoPorId,
+            Busca: string.IsNullOrWhiteSpace(busca) ? null : busca,
+            DataInicial: dataInicial,
+            DataFinal: dataFinal,
+            TipoDetectado: Enum.TryParse<TipoDocumentoDetectado>(tipoFiltro, out var t) ? t : null,
+            ComErro: somenteComErro ? true : null,
+            Pagina: pagina,
+            TamanhoPagina: TamanhoPagina);
+
+        var resultado = await Gerenciador.ListarPaginadoAsync(filtro);
+        documentos = resultado.Itens.ToList();
+        totalPaginas = resultado.TotalPaginas;
+        totalDocumentos = resultado.Total;
+        pagina = resultado.Pagina;
+
+        indicadores = await Gerenciador.ObterIndicadoresAsync(EnviadoPorId);
+        carregando = false;
+    }
+
+    private async Task AplicarFiltrosAsync()
+    {
+        pagina = 1;
+        await RecarregarAsync();
+    }
+
+    private void OnBuscaAlterada(ChangeEventArgs e)
+    {
+        busca = e.Value?.ToString() ?? string.Empty;
+
+        // Debounce — sem isso cada tecla digitada dispara uma query no
+        // banco; 400ms é o suficiente pra não parecer travado sem
+        // sobrecarregar em quem digita rápido.
+        debounceBusca?.Dispose();
+        debounceBusca = new Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                pagina = 1;
+                await RecarregarAsync();
+                StateHasChanged();
+            });
+        }, null, 400, Timeout.Infinite);
+    }
+
+    private async Task LimparFiltrosAsync()
+    {
+        busca = string.Empty;
+        statusFiltro = string.Empty;
+        tipoFiltro = string.Empty;
+        dataInicial = null;
+        dataFinal = null;
+        somenteComErro = false;
+        pagina = 1;
+        await RecarregarAsync();
+    }
+
+    private async Task IrParaPaginaAsync(int novaPagina)
+    {
+        pagina = novaPagina;
+        await RecarregarAsync();
     }
 
     private async Task EnviarAsync(InputFileChangeEventArgs e)
@@ -234,11 +417,17 @@ else
                 erro = string.Join(" ", resultado.Falhas.Select(f => $"{f.NomeArquivo}: {f.Motivo}"));
             }
 
+            pagina = 1;
             await RecarregarAsync();
         }
         catch (Exception ex)
         {
-            erro = $"Não consegui enviar: {ex.Message}";
+            // Falha inesperada (banco, etc.) — detalhe fica só no log,
+            // nunca em ex.Message pra tela (mesmo raciocínio aplicado no
+            // resto da Central de Documentos: ver
+            // GerenciadorDocumentosImportados.ProcessarAsync).
+            Logger.LogError(ex, "Falha inesperada ao enviar documentos para a Central de Documentos.");
+            erro = "Não consegui enviar os documentos agora — tente de novo em instantes.";
         }
         finally
         {
@@ -251,6 +440,27 @@ else
     {
         erro = null;
         var resultado = await Gerenciador.ReprocessarAsync(id, usuarioId);
+        if (!resultado.Sucesso)
+        {
+            erro = string.Join("; ", resultado.Erros);
+        }
+        await RecarregarAsync();
+    }
+
+    private bool confirmacaoVisivel;
+    private Guid documentoParaExcluir;
+
+    private void PedirExclusao(Guid id)
+    {
+        documentoParaExcluir = id;
+        confirmacaoVisivel = true;
+    }
+
+    private async Task ConfirmarExclusaoAsync()
+    {
+        confirmacaoVisivel = false;
+        erro = null;
+        var resultado = await Gerenciador.ExcluirAsync(documentoParaExcluir, usuarioId);
         if (!resultado.Sucesso)
         {
             erro = string.Join("; ", resultado.Erros);
@@ -274,5 +484,9 @@ else
         _ => (status.ToString(), "cinza", ""),
     };
 
-    public void Dispose() => timer?.Dispose();
+    public void Dispose()
+    {
+        timer?.Dispose();
+        debounceBusca?.Dispose();
+    }
 }

@@ -207,6 +207,14 @@ public sealed class ExecutorFerramentasChatIa(
             tipoDetectado = doc.TipoDetectado.ToString(),
             confiancaGeral = doc.ConfiancaGeral,
             campos = doc.Campos.Select(c => new { nome = c.Nome, valor = c.Valor, confianca = c.Confianca }),
+            resumo = doc.Resumo,
+            // Trecho, não o texto inteiro — isto é consulta sob demanda de UM
+            // documento (o usuário já pediu por ele), não o contexto padrão
+            // de toda mensagem do chat; ainda assim não faz sentido mandar
+            // dezenas de milhares de caracteres pro prompt de uma vez.
+            textoExtraidoResumido = doc.TextoExtraido is { Length: > 0 } texto
+                ? texto[..Math.Min(texto.Length, 4000)]
+                : null,
             mensagemErro = doc.MensagemErro,
             motivoRejeicao = doc.MotivoRejeicao,
         };

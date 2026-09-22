@@ -37,6 +37,22 @@ public class DocumentoImportado : IEntidadeAuditavel
     /// <summary>Campos extraídos, cada um com a confiança individual da leitura.</summary>
     public List<CampoExtraido> Campos { get; set; } = new();
 
+    /// <summary>
+    /// Texto integral extraído do documento pelo próprio sistema (pypdf/OCR
+    /// no serviço Python — nunca por LLM), truncado lá. Null quando ainda
+    /// não processado ou quando o leitor em uso não faz extração real
+    /// (<c>LeitorDocumentosStub</c>). Base para <see cref="Resumo"/> e para
+    /// o agente de chat consultar o conteúdo do documento sob demanda.
+    /// </summary>
+    public string? TextoExtraido { get; set; }
+
+    /// <summary>
+    /// Resumo curto, gerado deterministicamente a partir dos campos
+    /// extraídos (tipo, fornecedor, valor, datas) — não depende de LLM.
+    /// Null enquanto não processado.
+    /// </summary>
+    public string? Resumo { get; set; }
+
     /// <summary>Observação de erro quando <see cref="Status"/> é <see cref="StatusImportacaoDocumento.Falha"/>.</summary>
     public string? MensagemErro { get; set; }
 

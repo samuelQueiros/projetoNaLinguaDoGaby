@@ -17,7 +17,11 @@ public sealed record ResultadoLeituraDocumento(
     TipoDocumentoDetectado TipoDetectado,
     decimal ConfiancaGeral,
     IReadOnlyList<CampoLido> Campos,
-    string? Erro = null)
+    string? Erro = null,
+    // Texto integral extraído do documento pelo sistema (pypdf/OCR no
+    // serviço Python — nunca por LLM), truncado no serviço Python. Null
+    // quando o leitor não faz extração real (LeitorDocumentosStub).
+    string? Texto = null)
 {
     public bool Sucesso => Erro is null;
 

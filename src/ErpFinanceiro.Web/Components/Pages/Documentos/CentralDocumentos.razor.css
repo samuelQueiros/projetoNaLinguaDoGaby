@@ -29,6 +29,39 @@
         height: 15px;
     }
 
+/* ---------- Indicadores ---------- */
+.indicadores {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: .75rem;
+    margin-bottom: 1.5rem;
+}
+
+.indicador {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    padding: .85rem 1rem;
+    background-color: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-borda);
+}
+
+.indicador__valor {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.indicador__rotulo {
+    font-size: .8rem;
+    color: var(--cor-texto-suave);
+}
+
+.indicador--azul .indicador__valor { color: #1c2f8f; }
+.indicador--verde .indicador__valor { color: #0f7a3d; }
+.indicador--vermelho .indicador__valor { color: #c0392b; }
+
 /* ---------- Dropzone ---------- */
 .dropzone {
     position: relative;
@@ -133,6 +166,49 @@
     font-size: .85rem;
 }
 
+/* ---------- Filtros ---------- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: 1rem;
+}
+
+.filtros__busca {
+    flex: 1 1 16rem;
+    min-width: 12rem;
+}
+
+.filtros select,
+.filtros input[type="date"] {
+    width: auto;
+    flex: 0 0 auto;
+}
+
+.filtros__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .85rem;
+    color: var(--cor-texto-suave);
+    white-space: nowrap;
+}
+
+/* ---------- Paginação ---------- */
+.paginacao {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.25rem;
+}
+
+.paginacao__info {
+    font-size: .85rem;
+    color: var(--cor-texto-suave);
+}
+
 .doc-lista {
     list-style: none;
     padding: 0;
@@ -206,6 +282,12 @@
 .doc-card__detalhe {
     font-size: .8rem;
     color: var(--cor-texto-suave);
+}
+
+.doc-card__meta {
+    font-size: .75rem;
+    color: var(--cor-texto-suave);
+    opacity: .8;
 }
 
 .doc-card__acao {

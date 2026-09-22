@@ -43,7 +43,23 @@ public interface IGerenciadorDocumentosImportados
 
     Task<IReadOnlyList<DocumentoImportado>> ListarAsync(FiltroDocumentosImportados filtro);
 
+    /// <summary>Como <see cref="ListarAsync"/>, mas paginado no banco — usado pela Central de Documentos.</summary>
+    Task<ResultadoPaginado<DocumentoImportado>> ListarPaginadoAsync(FiltroDocumentosImportados filtro);
+
+    /// <summary>Contagens agregadas no banco para os indicadores do topo da Central de Documentos.</summary>
+    Task<IndicadoresDocumentosImportados> ObterIndicadoresAsync(Guid? enviadoPorId);
+
     Task<ResultadoContaPagar> AprovarAsync(Guid id, RevisaoDocumentoInput dados, Guid usuarioId);
 
     Task<ResultadoOperacao> RejeitarAsync(Guid id, string motivo, Guid usuarioId);
+
+    /// <summary>
+    /// Exclui um <see cref="DocumentoImportado"/> — arquivo físico e registro
+    /// no banco. Só Administrador; recusa documentos já <see
+    /// cref="StatusImportacaoDocumento.Aprovado"/> (já viraram uma
+    /// ContaPagar oficial — apagar o rastro do documento de origem quebraria
+    /// a trilha de auditoria; para tirar da fila, use Rejeitar antes de
+    /// aprovar).
+    /// </summary>
+    Task<ResultadoOperacao> ExcluirAsync(Guid id, Guid usuarioId);
 }

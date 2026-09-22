@@ -56,6 +56,12 @@ class RespostaExtracao(BaseModel):
     campos: list[CampoExtraido]
     campos_obrigatorios_pendentes: list[str] = Field(default_factory=list, alias="camposObrigatoriosPendentes")
     avisos: list[str] = Field(default_factory=list)
+    texto: str = Field(
+        "", description="Texto integral extraído do documento pelo sistema (sem IA) — "
+        "pypdf/OCR conforme o formato. Truncado em TEXTO_MAX_CHARS. O .NET persiste "
+        "isso em DocumentoImportado.TextoExtraido para consulta posterior (revisão, "
+        "agente de chat)."
+    )
 
     model_config = {"populate_by_name": True}
 

@@ -507,6 +507,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.Property(d => d.ConfiancaGeral).HasColumnType("numeric(5,4)");
             b.Property(d => d.MensagemErro).HasMaxLength(2000);
             b.Property(d => d.MotivoRejeicao).HasMaxLength(1000);
+            b.Property(d => d.TextoExtraido).HasColumnType("text");
+            b.Property(d => d.Resumo).HasMaxLength(500);
             b.Property(d => d.CriadoEm).HasDefaultValueSql("now()");
 
             // Campos extraídos como jsonb: são só para exibir na revisão, não

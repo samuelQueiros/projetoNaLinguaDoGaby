@@ -73,6 +73,9 @@ public class ExecutorFerramentasChatIaTests
         public Task<ResultadoOperacao> ReprocessarAsync(Guid id, Guid usuarioId) => throw new NotSupportedException();
         public Task<ResultadoContaPagar> AprovarAsync(Guid id, RevisaoDocumentoInput dados, Guid usuarioId) => throw new NotSupportedException();
         public Task<ResultadoOperacao> RejeitarAsync(Guid id, string motivo, Guid usuarioId) => throw new NotSupportedException();
+        public Task<ResultadoOperacao> ExcluirAsync(Guid id, Guid usuarioId) => throw new NotSupportedException();
+        public Task<ResultadoPaginado<DocumentoImportado>> ListarPaginadoAsync(FiltroDocumentosImportados filtro) => throw new NotSupportedException();
+        public Task<IndicadoresDocumentosImportados> ObterIndicadoresAsync(Guid? enviadoPorId) => throw new NotSupportedException();
 
         public Task<DocumentoImportado?> ObterAsync(Guid id) => Task.FromResult(RetornoObter);
 
