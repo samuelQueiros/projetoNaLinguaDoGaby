@@ -696,12 +696,29 @@ h1:focus {
 
 /* ===================== Entrada suave (dashboard e telas de cadastro) ===================== */
 @media (prefers-reduced-motion: no-preference) {
+    /* fill-mode "none" (padrão, sem "both"/"forwards") de propósito: com
+       "both" o transform: translateY(0) do último frame ficava aplicado em
+       .content pra sempre depois que a animação acabava — e QUALQUER
+       transform diferente de "none", mesmo uma identidade dessas, vira
+       containing block pra descendente position:fixed. Todo modal da tela
+       (Boletos, Notas Fiscais, Central de Documentos etc.) é descendente de
+       .content e ficava preso à caixa do artigo em vez de cobrir a
+       viewport inteira — sidebar e topo ficavam de fora do overlay escuro
+       ("metade branca"), e o modal ficava cortado/mal posicionado. .content
+       não tem animation-delay, então não precisa segurar o estado inicial
+       antes de começar — não usa "backwards" também.
+       */
     .content {
-        animation: entradaSuave 0.4s cubic-bezier(.16,1,.3,1) both;
+        animation: entradaSuave 0.4s cubic-bezier(.16,1,.3,1);
     }
 
+    /* Aqui sim precisa seguar o estado inicial até o animation-delay de
+       cada item começar (senão os cards piscam visíveis antes da vez
+       deles) — mas só "backwards", não "forwards"/"both": depois que a
+       animação termina o transform tem que voltar a "none", pelo mesmo
+       motivo do .content acima. */
     .atencao-grade > *, .kpi-grade > *, .metricas-linha > *, .resumo-linha > * {
-        animation: entradaSuave 0.5s cubic-bezier(.16,1,.3,1) both;
+        animation: entradaSuave 0.5s cubic-bezier(.16,1,.3,1) backwards;
     }
 
     .atencao-grade > *:nth-child(1), .kpi-grade > *:nth-child(1), .metricas-linha > *:nth-child(1), .resumo-linha > *:nth-child(1) { animation-delay: 0.02s; }
