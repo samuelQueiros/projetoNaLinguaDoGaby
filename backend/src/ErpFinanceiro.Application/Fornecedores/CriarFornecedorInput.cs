@@ -10,4 +10,5 @@ public sealed record CriarFornecedorInput(
     string? Email,
     string? ContatoResponsavel,
     Guid? FormaPagamentoPadraoId,
-    string? Observacoes);
+    string? Observacoes,
+    bool Ativo = true);

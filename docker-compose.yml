@@ -43,6 +43,8 @@ services:
         condition: service_healthy
     environment:
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-erp_financeiro};Username=${POSTGRES_USER:-erp};Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no arquivo .env (veja .env.example)}"
+      # Habilitado aqui pois esta stack local roda uma única instância do web.
+      Banco__AplicarMigracoes: "true"
       Criptografia__ChaveAes256Base64: ${CRIPTOGRAFIA_CHAVE_AES256_BASE64:?defina CRIPTOGRAFIA_CHAVE_AES256_BASE64 no arquivo .env (veja .env.example)}
       SeedAdministrador__Nome: ${ADMIN_NOME:-Administrador}
       SeedAdministrador__Email: ${ADMIN_EMAIL:?defina ADMIN_EMAIL no arquivo .env}

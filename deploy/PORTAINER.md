@@ -89,7 +89,7 @@ ser baixadas de um registry; não force pull delas na atualização do Portainer
 - PostgreSQL e Python não publicam portas no computador.
 - Banco, anexos e chaves dos cookies ficam nos volumes `postgres_data`, `anexos`
   e `chaves`, prefixados pelo nome da stack (`erp-financeiro_`).
-- Mantenha uma instância web, devido à fila em memória e ao Blazor Server.
+- Mantenha uma instância web, devido à fila em memória de processamento de documentos.
 - Configure o provedor de IA na tela **Configurações de IA**. Sem essa
   configuração, a leitura usa OCR e regras.
 - `http://localhost:8080/health` deve responder `Healthy`.

@@ -30,6 +30,8 @@ public class Fornecedor : IEntidadeAuditavel
 
     public string? Observacoes { get; set; }
 
+    public bool Ativo { get; set; } = true;
+
     public DateTime? ExcluidoEm { get; set; }
 
     public DateTime CriadoEm { get; set; }

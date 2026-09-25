@@ -26,6 +26,7 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
             ContatoResponsavel = input.ContatoResponsavel,
             FormaPagamentoPadraoId = input.FormaPagamentoPadraoId,
             Observacoes = input.Observacoes,
+            Ativo = input.Ativo,
         };
 
         db.Fornecedores.Add(fornecedor);
@@ -60,6 +61,7 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
         fornecedor.ContatoResponsavel = input.ContatoResponsavel;
         fornecedor.FormaPagamentoPadraoId = input.FormaPagamentoPadraoId;
         fornecedor.Observacoes = input.Observacoes;
+        fornecedor.Ativo = input.Ativo;
 
         try
         {

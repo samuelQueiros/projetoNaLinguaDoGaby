@@ -85,6 +85,29 @@ public class GerenciadorFornecedoresTests
     }
 
     [Fact]
+    public async Task CriarAsync_marca_fornecedor_como_ativo_por_padrao()
+    {
+        var (_, gerenciador, _, _, _) = await PrepararAsync();
+
+        var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
+
+        Assert.True(fornecedor.Ativo);
+    }
+
+    [Fact]
+    public async Task EditarAsync_permite_inativar_e_reativar_fornecedor()
+    {
+        var (db, gerenciador, _, _, _) = await PrepararAsync();
+        var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
+
+        await gerenciador.EditarAsync(fornecedor.Id, InputPadrao() with { Ativo = false });
+        Assert.False((await db.Fornecedores.FindAsync(fornecedor.Id))!.Ativo);
+
+        await gerenciador.EditarAsync(fornecedor.Id, InputPadrao() with { Ativo = true });
+        Assert.True((await db.Fornecedores.FindAsync(fornecedor.Id))!.Ativo);
+    }
+
+    [Fact]
     public async Task AdicionarDadosBancariosAsync_com_dois_principais_mantem_so_o_ultimo()
     {
         var (db, gerenciador, _, _, usuarioId) = await PrepararAsync();

@@ -1,7 +1,7 @@
 # Deploy do ERP no Portainer
 
 Esta stack é para **Docker Standalone, em um único servidor**, com uma instância
-web. Ela sobe Blazor/.NET 8, PostgreSQL 16, serviço Python de documentos e Caddy
+web. Ela sobe .NET 8 + React, PostgreSQL 16, serviço Python de documentos e Caddy
 para HTTPS. O Compose da raiz continua sendo o ambiente de desenvolvimento.
 
 ## 1. Identificar o servidor
@@ -104,9 +104,10 @@ docker compose --env-file deploy/portainer-https.env -f deploy/portainer-https-s
 7. Acesse `https://SEU_DOMINIO` e entre com o administrador configurado.
 
 As migrations são aplicadas antes do seed e do processamento de documentos.
-Por isso, mantenha **uma instância web**; este projeto usa fila em memória e
-Blazor Server, e não está configurado para múltiplas réplicas. Falha de migração
-impede a inicialização; consulte o log antes de tentar novamente.
+Por isso, mantenha **uma instância web**; este projeto usa fila em memória
+para processamento de documentos e não está configurado para múltiplas
+réplicas. Falha de migração impede a inicialização; consulte o log antes de
+tentar novamente.
 
 A criação do administrador ocorre somente se o e-mail ainda não existe.
 Alterar `ADMIN_PASSWORD` depois não redefine a senha de uma conta existente.
@@ -121,7 +122,7 @@ Somente Caddy publica portas; PostgreSQL e Python são acessados pela rede Docke
 
 ## 5. Verificações após o deploy
 
-- Abrir login e navegar entre telas: Blazor depende de WebSocket.
+- Abrir login e navegar entre telas do React.
 - Cadastrar um registro de teste, anexar um arquivo e baixar novamente.
 - Exportar um relatório PDF e Excel.
 - Reiniciar a stack e confirmar que dados e anexos continuam disponíveis.

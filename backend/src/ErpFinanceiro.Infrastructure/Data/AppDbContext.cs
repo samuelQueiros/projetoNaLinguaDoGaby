@@ -148,6 +148,7 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.Property(f => f.Email).HasMaxLength(200);
             b.Property(f => f.ContatoResponsavel).HasMaxLength(200);
             b.Property(f => f.Observacoes).HasMaxLength(2000);
+            b.Property(f => f.Ativo).HasDefaultValue(true);
             b.Property(f => f.CriadoEm).HasDefaultValueSql("now()");
 
             // Único só entre os não excluídos (exclusão lógica via

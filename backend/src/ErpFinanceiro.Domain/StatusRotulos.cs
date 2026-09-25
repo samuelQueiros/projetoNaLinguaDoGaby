@@ -2,16 +2,13 @@ namespace ErpFinanceiro.Domain;
 
 /// <summary>
 /// Rótulo em português dos status de conta a pagar — fonte única usada
-/// tanto pela Web (tela, pill colorido) quanto pela Infrastructure
-/// (exportação Excel/CSV/PDF). Antes duplicado entre as duas camadas (um
-/// achado crítico da auditoria de segurança/qualidade: o rótulo do
-/// relatório exportado podia divergir silenciosamente do rótulo mostrado
-/// na tela sempre que só um dos dois lugares fosse atualizado ao adicionar
-/// um valor novo ao enum) — vive em Domain, não em Web, porque
-/// Infrastructure não pode depender de Web (direção de dependência
-/// inversa). A cor/classe CSS do pill continua em
-/// ErpFinanceiro.Web.Components.Shared.StatusRotulos, que é mesmo uma
-/// decisão de apresentação e não pertence aqui.
+/// pela Infrastructure (exportação Excel/CSV/PDF) e pelo front-end React
+/// via API. Antes duplicado entre camadas (um achado crítico da auditoria
+/// de segurança/qualidade: o rótulo do relatório exportado podia divergir
+/// silenciosamente do rótulo mostrado na tela sempre que só um dos dois
+/// lugares fosse atualizado ao adicionar um valor novo ao enum) — vive em
+/// Domain porque Infrastructure não pode depender de Web (direção de
+/// dependência inversa).
 /// </summary>
 public static class StatusRotulos
 {
