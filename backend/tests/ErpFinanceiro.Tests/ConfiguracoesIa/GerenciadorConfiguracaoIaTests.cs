@@ -1,5 +1,7 @@
+using ErpFinanceiro.Application.ConfiguracoesIa;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.ConfiguracoesIa;
+using ErpFinanceiro.Tests.Fixtures;
 using Microsoft.Extensions.Configuration;
 
 namespace ErpFinanceiro.Tests.ConfiguracoesIa;
@@ -12,7 +14,7 @@ public class GerenciadorConfiguracaoIaTests
             .AddInMemoryCollection(configuracoes.Select(c => new KeyValuePair<string, string?>(c.Chave, c.Valor)))
             .Build();
 
-        return new GerenciadorConfiguracaoIa(new HttpClient(), configuracao);
+        return new GerenciadorConfiguracaoIa(new HttpClient(), configuracao, AppDbContextFactory.CriarEmMemoria(), new RegistradorAuditoriaFalso());
     }
 
     [Fact]
@@ -122,5 +124,88 @@ public class GerenciadorConfiguracaoIaTests
 
         Assert.Equal(ProvedorIa.Gemini, documentos!.Provedor);
         Assert.Equal(ProvedorIa.Anthropic, chat!.Provedor);
+    }
+
+    [Fact]
+    public async Task SalvarAsync_sem_configuracao_previa_exige_chave_de_api()
+    {
+        var gerenciador = Criar();
+
+        var resultado = await gerenciador.SalvarAsync(
+            FinalidadeConfiguracaoIa.Chat,
+            new SalvarConfiguracaoIaInput(true, ProvedorIa.Gemini, "gemini-2.5-flash", ApiKey: null, TimeoutSegundos: 90),
+            Guid.NewGuid());
+
+        Assert.False(resultado.Sucesso);
+    }
+
+    [Fact]
+    public async Task SalvarAsync_e_depois_ObterAsync_prevalece_sobre_variavel_de_ambiente()
+    {
+        var gerenciador = Criar(
+            ("Ia:Chat:Provedor", "Gemini"),
+            ("Ia:Chat:Modelo", "modelo-do-ambiente"),
+            ("Ia:Chat:ApiKey", "chave-do-ambiente"));
+
+        var resultado = await gerenciador.SalvarAsync(
+            FinalidadeConfiguracaoIa.Chat,
+            new SalvarConfiguracaoIaInput(true, ProvedorIa.Anthropic, "modelo-da-tela", "chave-da-tela", 120),
+            Guid.NewGuid());
+        Assert.True(resultado.Sucesso);
+
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
+
+        Assert.Equal(ProvedorIa.Anthropic, config!.Provedor);
+        Assert.Equal("modelo-da-tela", config.Modelo);
+        Assert.Equal("chave-da-tela", config.ApiKey);
+        Assert.Equal(120, config.TimeoutSegundos);
+    }
+
+    [Fact]
+    public async Task SalvarAsync_com_chave_em_branco_mantem_a_chave_ja_salva()
+    {
+        var gerenciador = Criar();
+        var usuarioId = Guid.NewGuid();
+        await gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Chat,
+            new SalvarConfiguracaoIaInput(true, ProvedorIa.Gemini, "modelo-v1", "chave-original", 90), usuarioId);
+
+        var resultado = await gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Chat,
+            new SalvarConfiguracaoIaInput(true, ProvedorIa.Gemini, "modelo-v2", ApiKey: null, TimeoutSegundos: 90), usuarioId);
+
+        Assert.True(resultado.Sucesso);
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
+        Assert.Equal("modelo-v2", config!.Modelo);
+        Assert.Equal("chave-original", config.ApiKey);
+    }
+
+    [Fact]
+    public async Task ObterResumoAsync_nunca_devolve_a_chave_em_texto_claro()
+    {
+        var gerenciador = Criar();
+        await gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Chat,
+            new SalvarConfiguracaoIaInput(true, ProvedorIa.Gemini, "modelo", "chave-secreta", 90), Guid.NewGuid());
+
+        var resumo = await gerenciador.ObterResumoAsync(FinalidadeConfiguracaoIa.Chat);
+
+        Assert.True(resumo.ConfiguradoPeloPainel);
+        Assert.True(resumo.ApiKeyDefinida);
+        Assert.DoesNotContain("chave-secreta", resumo.ToString());
+    }
+
+    [Fact]
+    public async Task RestaurarPadraoAsync_remove_a_configuracao_salva_e_volta_a_usar_a_variavel_de_ambiente()
+    {
+        var gerenciador = Criar(
+            ("Ia:Chat:Provedor", "Gemini"),
+            ("Ia:Chat:Modelo", "modelo-do-ambiente"),
+            ("Ia:Chat:ApiKey", "chave-do-ambiente"));
+        await gerenciador.SalvarAsync(FinalidadeConfiguracaoIa.Chat,
+            new SalvarConfiguracaoIaInput(true, ProvedorIa.Anthropic, "modelo-da-tela", "chave-da-tela", 90), Guid.NewGuid());
+
+        await gerenciador.RestaurarPadraoAsync(FinalidadeConfiguracaoIa.Chat, Guid.NewGuid());
+
+        var config = await gerenciador.ObterAsync(FinalidadeConfiguracaoIa.Chat);
+        Assert.Equal(ProvedorIa.Gemini, config!.Provedor);
+        Assert.Equal("modelo-do-ambiente", config.Modelo);
     }
 }

@@ -15,6 +15,15 @@ public class LeitorDocumentosHttpTests
     {
         public Task<ConfiguracaoIa?> ObterAsync(FinalidadeConfiguracaoIa finalidade) => Task.FromResult(valor);
 
+        public Task<ConfiguracaoIaResumo> ObterResumoAsync(FinalidadeConfiguracaoIa finalidade) =>
+            throw new NotSupportedException();
+
+        public Task<ResultadoOperacao> SalvarAsync(FinalidadeConfiguracaoIa finalidade, SalvarConfiguracaoIaInput input, Guid usuarioId) =>
+            throw new NotSupportedException();
+
+        public Task RestaurarPadraoAsync(FinalidadeConfiguracaoIa finalidade, Guid usuarioId) =>
+            throw new NotSupportedException();
+
         public Task<ResultadoOperacao> TestarConexaoAsync(FinalidadeConfiguracaoIa finalidade) =>
             throw new NotSupportedException();
     }

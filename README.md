@@ -102,11 +102,15 @@ backend .NET.
 - **Auditoria** — log de auditoria de todas as ações relevantes, com tela de
   consulta dedicada.
 - **Usuários** — CRUD de usuários e atribuição de perfil (role).
-- **Configurações de IA** — tela (somente leitura, Administrador) que mostra
-  provedor/modelo/status do LLM usado na leitura de documentos e no chat, e
-  testa a conexão. Provedor/modelo/chave são configurados por variável de
-  ambiente (`Ia__Documentos__*` / `Ia__Chat__*`), não pela tela — ver seção
-  de variáveis de ambiente abaixo.
+- **Configurações de IA** — tela (Administrador) para ver e editar
+  provedor/modelo/chave/timeout do LLM usado na leitura de documentos e no
+  chat, e testar a conexão. Uma configuração salva pela tela prevalece
+  sobre a variável de ambiente (`Ia__Documentos__*` / `Ia__Chat__*` — ver
+  seção de variáveis de ambiente abaixo); sem edição pela tela, vale a env
+  var, útil pra já subir configurado sem precisar acessar o sistema. A
+  chave de API é cifrada em repouso (AES-256-GCM) e nunca é devolvida em
+  texto claro pela API depois de salva — só se está definida. "Restaurar
+  padrão" remove a configuração salva e volta a usar a env var.
 - **Assistente de chat (IA)** — chat com ferramentas somente-leitura sobre
   os dados do ERP (hoje com adapter para Gemini), configurado por variável
   de ambiente (`Ia__Chat__*`).
@@ -250,10 +254,10 @@ Pontos importantes:
   inicial — isso não afeta a conta já criada.
 - Configure o provedor de IA pelas variáveis de ambiente `Ia__Documentos__*`
   e `Ia__Chat__*` (Provedor/Modelo/ApiKey — ver `.env.example` ou
-  `deploy/portainer.env.example`) antes do deploy; sem isso, a leitura de
-  documentos usa só OCR e regras, e o chat fica indisponível. A tela
-  **Configurações de IA** só mostra o que está configurado e testa a
-  conexão — trocar exige reiniciar o container.
+  `deploy/portainer.env.example`) antes do deploy, ou depois pela tela
+  **Configurações de IA** (Administrador) — editar ali não exige reiniciar
+  o container nem redeploy, vale no próximo request. Sem nenhuma das duas,
+  a leitura de documentos usa só OCR e regras, e o chat fica indisponível.
 
 ## Estrutura do repositório
 

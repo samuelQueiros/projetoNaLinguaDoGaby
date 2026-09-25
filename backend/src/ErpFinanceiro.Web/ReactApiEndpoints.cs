@@ -154,7 +154,9 @@ public static class ReactApiEndpoints
         admin.MapPut("/usuarios/{id:guid}/perfil", async (Guid id, PerfilRequest r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorUsuarios g) => await g.TrocarPerfilAsync(id, r.Perfil, await Uid(p, um)));
         admin.MapGet("/auditoria/tipos", (IConsultaAuditoria g) => g.ListarTiposEntidadeAsync());
         admin.MapGet("/auditoria", (string? tipoEntidade, DateTime? dataInicial, DateTime? dataFinal, int limite, IConsultaAuditoria g) => g.ListarAsync(new(tipoEntidade, dataInicial, dataFinal), limite <= 0 ? 200 : limite));
-        admin.MapGet("/configuracoes-ia/{finalidade}", (FinalidadeConfiguracaoIa finalidade, IGerenciadorConfiguracaoIa g) => g.ObterAsync(finalidade));
+        admin.MapGet("/configuracoes-ia/{finalidade}", (FinalidadeConfiguracaoIa finalidade, IGerenciadorConfiguracaoIa g) => g.ObterResumoAsync(finalidade));
+        admin.MapPut("/configuracoes-ia/{finalidade}", async (FinalidadeConfiguracaoIa finalidade, SalvarConfiguracaoIaInput r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorConfiguracaoIa g) => await g.SalvarAsync(finalidade, r, await Uid(p, um)));
+        admin.MapDelete("/configuracoes-ia/{finalidade}", async (FinalidadeConfiguracaoIa finalidade, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorConfiguracaoIa g) => { await g.RestaurarPadraoAsync(finalidade, await Uid(p, um)); return Results.NoContent(); });
         admin.MapPost("/configuracoes-ia/{finalidade}/testar", (FinalidadeConfiguracaoIa finalidade, IGerenciadorConfiguracaoIa g) => g.TestarConexaoAsync(finalidade));
         a.MapPost("/chat", async (ChatRequest r, ClaimsPrincipal p, UserManager<Usuario> um, IAgenteChatIa g, CancellationToken ct) => await g.ResponderAsync(r.Historico, r.Mensagem, await Uid(p, um), ct));
     }

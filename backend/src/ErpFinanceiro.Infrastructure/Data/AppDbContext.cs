@@ -54,6 +54,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<DocumentoImportado> DocumentosImportados => Set<DocumentoImportado>();
 
+    public DbSet<ConfiguracaoIaSalva> ConfiguracoesIa => Set<ConfiguracaoIaSalva>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -550,6 +552,36 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             b.ToTable(t => t.HasCheckConstraint("CK_DocumentosImportados_TamanhoBytes", "\"TamanhoBytes\" >= 0"));
             b.ToTable(t => t.HasCheckConstraint("CK_DocumentosImportados_ConfiancaGeral",
                 "\"ConfiancaGeral\" >= 0 AND \"ConfiancaGeral\" <= 1"));
+        });
+
+        builder.Entity<ConfiguracaoIaSalva>(b =>
+        {
+            b.ToTable("ConfiguracoesIa");
+            b.Property(c => c.Finalidade).HasConversion<string>().HasMaxLength(20);
+            b.Property(c => c.Provedor).HasConversion<string>().HasMaxLength(30);
+            b.Property(c => c.Modelo).IsRequired().HasMaxLength(150);
+            b.Property(c => c.CriadoEm).HasDefaultValueSql("now()");
+
+            // ApiKey cifrada em repouso (AES-256-GCM), mesmo padrão de
+            // DadosBancariosFornecedor/ContaBancariaEmpresa (CLAUDE.md seção
+            // 3) — mesmo sendo credencial de provedor de IA, não dado
+            // bancário. Contexto (AAD) por coluna, não por linha: mesma
+            // limitação documentada em CriptografiaAes256 (um DBA malicioso
+            // poderia copiar o cifrado da linha Documentos para a linha
+            // Chat sem detecção — volume baixo, não bloqueante).
+            b.Property(c => c.ApiKey)
+                .HasMaxLength(1000)
+                .HasConversion(
+                    v => v == null ? null : criptografia.Cifrar(v, "ConfiguracaoIaSalva.ApiKey"),
+                    v => v == null ? null : criptografia.Decifrar(v, "ConfiguracaoIaSalva.ApiKey"));
+
+            b.HasOne<Usuario>()
+                .WithMany()
+                .HasForeignKey(c => c.AtualizadoPorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Uma linha por finalidade — upsert em GerenciadorConfiguracaoIa.
+            b.HasIndex(c => c.Finalidade).IsUnique();
         });
     }
 

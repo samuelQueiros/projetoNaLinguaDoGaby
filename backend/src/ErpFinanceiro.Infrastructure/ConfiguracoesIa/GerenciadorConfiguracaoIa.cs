@@ -1,31 +1,150 @@
 using System.Net.Http.Headers;
 using ErpFinanceiro.Application;
+using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.ConfiguracoesIa;
 using ErpFinanceiro.Domain;
+using ErpFinanceiro.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
 namespace ErpFinanceiro.Infrastructure.ConfiguracoesIa;
 
 /// <summary>
-/// Lê a configuração de IA de variáveis de ambiente — seção
-/// <c>Ia:Documentos</c> ou <c>Ia:Chat</c> (env vars <c>Ia__Documentos__*</c> /
-/// <c>Ia__Chat__*</c>: Provedor, Modelo, ApiKey, TimeoutSegundos, e o
-/// opcional Ativo pra desligar sem apagar a chave). Nada é lido do banco —
-/// <see cref="IConfiguration"/> é consultado a cada chamada (nunca cacheado
-/// num campo), então trocar a env var e reiniciar o container já é
-/// suficiente pra valer no próximo request, sem migração nem tela de
-/// cadastro. O HttpClient injetado (typed client, ver Program.cs) é usado
-/// só pra "Testar conexão" — chamadas ad-hoc com URI absoluta, sem
-/// BaseAddress.
-///
-/// Configuração ausente ou incompleta (falta Provedor, Modelo ou ApiKey, ou
-/// Provedor não reconhecido) é tratada como "não configurado" —
-/// <see cref="ObterAsync"/> devolve null, igual a antes quando a linha do
-/// banco não existia.
+/// Configuração de IA: uma linha salva pela tela Configurações de IA
+/// (Administrador, tabela ConfiguracoesIa — <see cref="ConfiguracaoIaSalva"/>,
+/// ApiKey cifrada em repouso) prevalece quando existe; sem ela, cai para a
+/// variável de ambiente <c>Ia:Documentos</c>/<c>Ia:Chat</c> (env vars
+/// <c>Ia__Documentos__*</c>/<c>Ia__Chat__*</c>) — permite subir o ambiente
+/// funcionando via docker-compose/.env sem precisar abrir a tela, e depois
+/// editar por ali sem redeploy. <see cref="ObterAsync"/> nunca cacheia em
+/// campo (sempre relê banco/config), pra uma edição valer no próximo
+/// request. O HttpClient injetado (typed client, ver Program.cs) é usado só
+/// pra "Testar conexão" — chamadas ad-hoc com URI absoluta, sem BaseAddress.
 /// </summary>
-public sealed class GerenciadorConfiguracaoIa(HttpClient http, IConfiguration configuracao) : IGerenciadorConfiguracaoIa
+public sealed class GerenciadorConfiguracaoIa(
+    HttpClient http,
+    IConfiguration configuracao,
+    AppDbContext db,
+    IRegistradorAuditoria auditoria) : IGerenciadorConfiguracaoIa
 {
-    public Task<ConfiguracaoIa?> ObterAsync(FinalidadeConfiguracaoIa finalidade)
+    public async Task<ConfiguracaoIa?> ObterAsync(FinalidadeConfiguracaoIa finalidade)
+    {
+        var salva = await db.ConfiguracoesIa.AsNoTracking().FirstOrDefaultAsync(c => c.Finalidade == finalidade);
+        if (salva is not null)
+        {
+            // Config salva pela tela existe mas está incompleta (não deveria
+            // acontecer — SalvarAsync valida antes de gravar — mas defensivo
+            // contra edição direta no banco): trata como "não configurado",
+            // não cai para a env var (o admin optou por gerenciar pela tela).
+            return string.IsNullOrWhiteSpace(salva.Modelo) || string.IsNullOrWhiteSpace(salva.ApiKey)
+                ? null
+                : new ConfiguracaoIa
+                {
+                    Ativo = salva.Ativo,
+                    Provedor = salva.Provedor,
+                    Modelo = salva.Modelo,
+                    ApiKey = salva.ApiKey,
+                    TimeoutSegundos = salva.TimeoutSegundos,
+                };
+        }
+
+        return ObterDaEnv(finalidade);
+    }
+
+    public async Task<ConfiguracaoIaResumo> ObterResumoAsync(FinalidadeConfiguracaoIa finalidade)
+    {
+        var salva = await db.ConfiguracoesIa.AsNoTracking().FirstOrDefaultAsync(c => c.Finalidade == finalidade);
+        if (salva is not null)
+        {
+            return new ConfiguracaoIaResumo(
+                ConfiguradoPeloPainel: true,
+                Ativo: salva.Ativo,
+                Provedor: salva.Provedor,
+                Modelo: salva.Modelo,
+                TimeoutSegundos: salva.TimeoutSegundos,
+                ApiKeyDefinida: !string.IsNullOrWhiteSpace(salva.ApiKey));
+        }
+
+        // Sem linha salva: mostra o que está efetivamente valendo via env
+        // var, só pra a tela informar a situação atual — salvar a partir
+        // daqui cria a linha (deixa de depender da env var).
+        var daEnv = ObterDaEnv(finalidade);
+        return new ConfiguracaoIaResumo(
+            ConfiguradoPeloPainel: false,
+            Ativo: daEnv?.Ativo ?? false,
+            Provedor: daEnv?.Provedor,
+            Modelo: daEnv?.Modelo,
+            TimeoutSegundos: daEnv?.TimeoutSegundos ?? 90,
+            ApiKeyDefinida: !string.IsNullOrWhiteSpace(daEnv?.ApiKey));
+    }
+
+    public async Task<ResultadoOperacao> SalvarAsync(FinalidadeConfiguracaoIa finalidade, SalvarConfiguracaoIaInput input, Guid usuarioId)
+    {
+        if (string.IsNullOrWhiteSpace(input.Modelo))
+        {
+            return ResultadoOperacao.Falha("Informe o modelo.");
+        }
+
+        if (input.TimeoutSegundos <= 0)
+        {
+            return ResultadoOperacao.Falha("Timeout deve ser maior que zero.");
+        }
+
+        var salva = await db.ConfiguracoesIa.FirstOrDefaultAsync(c => c.Finalidade == finalidade);
+        var existia = salva is not null;
+
+        if (!existia && string.IsNullOrWhiteSpace(input.ApiKey))
+        {
+            return ResultadoOperacao.Falha("Informe a chave de API.");
+        }
+
+        var anterior = existia
+            ? new { salva!.Ativo, salva.Provedor, salva.Modelo, salva.TimeoutSegundos, ApiKeyDefinida = !string.IsNullOrWhiteSpace(salva.ApiKey) }
+            : null;
+
+        salva ??= new ConfiguracaoIaSalva { Id = Guid.NewGuid(), Finalidade = finalidade };
+
+        salva.Ativo = input.Ativo;
+        salva.Provedor = input.Provedor;
+        salva.Modelo = input.Modelo.Trim();
+        salva.TimeoutSegundos = input.TimeoutSegundos;
+        salva.AtualizadoPorId = usuarioId;
+        // ApiKey em branco = manter a atual (só existe caminho de troca, não
+        // de "esvaziar" — ver doc de SalvarConfiguracaoIaInput).
+        if (!string.IsNullOrWhiteSpace(input.ApiKey))
+        {
+            salva.ApiKey = input.ApiKey;
+        }
+
+        if (!existia)
+        {
+            db.ConfiguracoesIa.Add(salva);
+        }
+
+        await db.SaveChangesAsync();
+
+        await auditoria.RegistrarAsync(usuarioId, existia ? "Editar" : "Criar", nameof(ConfiguracaoIaSalva), salva.Id, anterior,
+            new { salva.Ativo, salva.Provedor, salva.Modelo, salva.TimeoutSegundos, ApiKeyDefinida = !string.IsNullOrWhiteSpace(salva.ApiKey) });
+
+        return ResultadoOperacao.Ok();
+    }
+
+    public async Task RestaurarPadraoAsync(FinalidadeConfiguracaoIa finalidade, Guid usuarioId)
+    {
+        var salva = await db.ConfiguracoesIa.FirstOrDefaultAsync(c => c.Finalidade == finalidade);
+        if (salva is null)
+        {
+            return;
+        }
+
+        db.ConfiguracoesIa.Remove(salva);
+        await db.SaveChangesAsync();
+
+        await auditoria.RegistrarAsync(usuarioId, "Remover", nameof(ConfiguracaoIaSalva), salva.Id,
+            new { salva.Ativo, salva.Provedor, salva.Modelo, salva.TimeoutSegundos }, null);
+    }
+
+    private ConfiguracaoIa? ObterDaEnv(FinalidadeConfiguracaoIa finalidade)
     {
         var secao = configuracao.GetSection($"Ia:{finalidade}");
 
@@ -38,7 +157,7 @@ public sealed class GerenciadorConfiguracaoIa(HttpClient http, IConfiguration co
             || string.IsNullOrWhiteSpace(apiKey)
             || !Enum.TryParse<ProvedorIa>(provedorTexto, ignoreCase: true, out var provedor))
         {
-            return Task.FromResult<ConfiguracaoIa?>(null);
+            return null;
         }
 
         // Ativo é opcional (default true quando a chave está presente) —
@@ -47,14 +166,14 @@ public sealed class GerenciadorConfiguracaoIa(HttpClient http, IConfiguration co
         var ativo = !bool.TryParse(secao["Ativo"], out var ativoConfigurado) || ativoConfigurado;
         var timeout = int.TryParse(secao["TimeoutSegundos"], out var timeoutConfigurado) ? timeoutConfigurado : 90;
 
-        return Task.FromResult<ConfiguracaoIa?>(new ConfiguracaoIa
+        return new ConfiguracaoIa
         {
             Ativo = ativo,
             Provedor = provedor,
             Modelo = modelo,
             ApiKey = apiKey,
             TimeoutSegundos = timeout,
-        });
+        };
     }
 
     public async Task<ResultadoOperacao> TestarConexaoAsync(FinalidadeConfiguracaoIa finalidade)
@@ -72,7 +191,7 @@ public sealed class GerenciadorConfiguracaoIa(HttpClient http, IConfiguration co
         if (config is not { Ativo: true })
         {
             return ResultadoOperacao.Falha(
-                $"Configuração ausente, incompleta ou inativa nas variáveis de ambiente (Ia__{finalidade}__Provedor/Modelo/ApiKey).");
+                $"Configuração ausente, incompleta ou inativa (tela Configurações de IA ou variáveis de ambiente Ia__{finalidade}__Provedor/Modelo/ApiKey).");
         }
 
         return await TestarProvedorAsync(config.Provedor, config.ApiKey!);
