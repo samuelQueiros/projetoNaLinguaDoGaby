@@ -94,7 +94,7 @@ services:
 
   servico-documentos:
     image: ${ERP_DOCUMENTOS_IMAGE:-erp-financeiro-documentos:1.0.0}
-    build: ../servico-documentos
+    build: ../backend/servico-documentos
     pull_policy: build
     restart: unless-stopped
     environment:

@@ -18,4 +18,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <Target Name="BuildReact" BeforeTargets="Publish" Condition="'$(BuildReact)' != 'false'">
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)/../../../frontend" Command="npm ci" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)/../../../frontend" Command="npm run build" />
+  </Target>
+
 </Project>

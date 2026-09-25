@@ -32,9 +32,7 @@ using ErpFinanceiro.Infrastructure.Relatorios;
 using ErpFinanceiro.Infrastructure.Seguranca;
 using ErpFinanceiro.Infrastructure.Storage;
 using ErpFinanceiro.Infrastructure.Usuarios;
-using ErpFinanceiro.Web.Components;
-using ErpFinanceiro.Web.Components.Account;
-using Microsoft.AspNetCore.Components.Authorization;
+using ErpFinanceiro.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -77,14 +75,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddHealthChecks()
     .AddCheck<ErpFinanceiro.Web.Servicos.BancoHealthCheck>("banco");
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-
-builder.Services.AddCascadingAuthenticationState();
-builder.Services.AddScoped<IdentityUserAccessor>();
-builder.Services.AddScoped<IdentityRedirectManager>();
-builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+// O frontend e uma SPA React. O ASP.NET hospeda os arquivos compilados e
+// expoe os casos de uso por uma API autenticada por cookie.
+builder.Services.AddAuthorization();
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+});
 
 builder.Services.AddAuthentication(options =>
     {
@@ -136,6 +134,26 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.SameSite = SameSiteMode.Strict;
     options.ExpireTimeSpan = TimeSpan.FromHours(8);
     options.SlidingExpiration = true;
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
 });
 
 builder.Services.AddScoped<IGerenciadorUsuarios, GerenciadorUsuarios>();
@@ -240,13 +258,10 @@ if (!permitirHttpLocal)
 }
 
 app.UseStaticFiles();
-app.UseAntiforgery();
+app.UseAuthentication();
+app.UseAuthorization();
 
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-// Endpoints exigidos pelos componentes de Identity em Components/Account.
-app.MapAdditionalIdentityEndpoints();
+app.MapReactApi();
 
 // Download de anexo — precisa ser um endpoint HTTP (não dá para servir um
 // arquivo direto de um componente Blazor Server). Exige autenticação;
@@ -323,6 +338,10 @@ app.MapGet("/relatorios/contas-a-pagar.pdf", async (IGerenciadorContasPagar gere
         var arquivo = exportador.ExportarPdf(contas);
         return Results.File(arquivo, "application/pdf", "contas-a-pagar.pdf");
     }).RequireAuthorization();
+
+// React Router resolve as rotas no navegador; caminhos que nao pertencem a
+// API nem a um arquivo fisico recebem o mesmo index.html.
+app.MapFallbackToFile("react/index.html");
 
 using (var scope = app.Services.CreateScope())
 {

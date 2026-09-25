@@ -19,8 +19,8 @@ appsettings.Development.json
 .env
 
 # Anexos em disco (dev) — apenas a estrutura de pastas é versionada, não os arquivos
-storage/*
-!storage/.gitkeep
+backend/storage/*
+!backend/storage/.gitkeep
 
 # Artefatos de publish
 [Pp]ublish/
@@ -33,3 +33,8 @@ storage/*
 
 # Segredos de deploy
 /deploy/*.env
+
+# Frontend React — dependencias e saida gerada
+/frontend/node_modules/
+/frontend/*.tsbuildinfo
+/backend/src/ErpFinanceiro.Web/wwwroot/react/

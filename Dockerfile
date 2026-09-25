@@ -1,13 +1,21 @@
+FROM node:20-bookworm-slim AS frontend
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 FROM mcr.microsoft.com/dotnet/sdk:8.0-bookworm-slim AS build
 WORKDIR /src
-COPY src/ErpFinanceiro.Domain/*.csproj src/ErpFinanceiro.Domain/
-COPY src/ErpFinanceiro.Application/*.csproj src/ErpFinanceiro.Application/
-COPY src/ErpFinanceiro.Infrastructure/*.csproj src/ErpFinanceiro.Infrastructure/
-COPY src/ErpFinanceiro.Web/*.csproj src/ErpFinanceiro.Web/
-RUN dotnet restore src/ErpFinanceiro.Web/ErpFinanceiro.Web.csproj
-COPY src/ src/
-RUN dotnet publish src/ErpFinanceiro.Web/ErpFinanceiro.Web.csproj \
-    -c Release -o /out --no-restore /p:UseAppHost=false \
+COPY backend/src/ErpFinanceiro.Domain/*.csproj backend/src/ErpFinanceiro.Domain/
+COPY backend/src/ErpFinanceiro.Application/*.csproj backend/src/ErpFinanceiro.Application/
+COPY backend/src/ErpFinanceiro.Infrastructure/*.csproj backend/src/ErpFinanceiro.Infrastructure/
+COPY backend/src/ErpFinanceiro.Web/*.csproj backend/src/ErpFinanceiro.Web/
+RUN dotnet restore backend/src/ErpFinanceiro.Web/ErpFinanceiro.Web.csproj
+COPY backend/src/ backend/src/
+COPY --from=frontend /backend/src/ErpFinanceiro.Web/wwwroot/react/ backend/src/ErpFinanceiro.Web/wwwroot/react/
+RUN dotnet publish backend/src/ErpFinanceiro.Web/ErpFinanceiro.Web.csproj \
+    -c Release -o /out --no-restore /p:UseAppHost=false /p:BuildReact=false \
     && rm -f /out/appsettings.Development.json*
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-bookworm-slim AS runtime

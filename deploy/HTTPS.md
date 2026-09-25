@@ -30,11 +30,11 @@ a seção de proxy existente antes de implantar.
 ## 2. Construir as imagens
 
 No **servidor Docker gerenciado pelo Portainer**, copie/clone o projeto e entre
-na pasta que contém `ErpFinanceiro.sln` e o `Dockerfile`:
+na pasta raiz do repositório (onde estão `frontend/`, `backend/` e o `Dockerfile`):
 
 ```bash
 docker build --pull -t erp-financeiro-web:1.0.0 .
-docker build --pull -t erp-financeiro-documentos:1.0.0 servico-documentos
+docker build --pull -t erp-financeiro-documentos:1.0.0 backend/servico-documentos
 ```
 
 O Web editor recebe somente o YAML: as imagens precisam existir previamente

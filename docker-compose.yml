@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no arquivo .env (veja .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-erp_financeiro}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - erp_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,10 +18,10 @@ services:
       retries: 10
 
   servico-documentos:
-    build: ./servico-documentos
+    build: ./backend/servico-documentos
     container_name: erp-servico-documentos
     restart: unless-stopped
-    env_file: ./servico-documentos/.env
+    env_file: ./backend/servico-documentos/.env
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -33,7 +33,7 @@ services:
   web:
     build:
       context: .
-      dockerfile: src/ErpFinanceiro.Web/Dockerfile
+      dockerfile: backend/src/ErpFinanceiro.Web/Dockerfile
     container_name: erp-financeiro-web
     restart: unless-stopped
     depends_on:
@@ -44,7 +44,13 @@ services:
     environment:
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-erp_financeiro};Username=${POSTGRES_USER:-erp};Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no arquivo .env (veja .env.example)}"
       Criptografia__ChaveAes256Base64: ${CRIPTOGRAFIA_CHAVE_AES256_BASE64:?defina CRIPTOGRAFIA_CHAVE_AES256_BASE64 no arquivo .env (veja .env.example)}
+      SeedAdministrador__Nome: ${ADMIN_NOME:-Administrador}
+      SeedAdministrador__Email: ${ADMIN_EMAIL:?defina ADMIN_EMAIL no arquivo .env}
+      SeedAdministrador__SenhaInicial: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no arquivo .env}
       Ia__Leitor__Modo: ${IA_LEITOR_MODO:-Stub}
+      # Acesso por HTTP pela rede (ex.: http://chat-server:8080) — sem isso o
+      # cookie de login sai com a flag Secure e o navegador o descarta.
+      Seguranca__PermitirHttpLocal: ${PERMITIR_HTTP_LOCAL:-true}
       Ia__Leitor__BaseUrl: http://servico-documentos:8000
       Ia__Leitor__TimeoutSegundos: "120"
       Ia__Leitor__TokenInterno: ${IA_LEITOR_TOKEN_INTERNO:-}
@@ -55,7 +61,7 @@ services:
       Ia__Documentos__Modelo: ${DOCUMENTOS_IA_MODELO:-}
       Ia__Documentos__ApiKey: ${DOCUMENTOS_IA_API_KEY:-}
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
 
 volumes:
   erp_postgres_data:
