@@ -17,6 +17,10 @@ function Guard({children,admin=false}:{children:React.ReactNode;admin?:boolean})
   const {user,loading}=useAuth(); if(loading)return <div className="loader">Carregando…</div>;
   if(!user)return <Navigate to="/login" replace/>; if(admin&&!user.ehAdministrador)return <Navigate to="/" replace/>; return children;
 }
+function CampoSenha(props:React.InputHTMLAttributes<HTMLInputElement>){
+  const [mostrar,setMostrar]=useState(false);
+  return <span className="pwd"><input {...props} type={mostrar?'text':'password'}/><button type="button" tabIndex={-1} onClick={()=>setMostrar(v=>!v)}>{mostrar?'Ocultar':'Mostrar'}</button></span>;
+}
 function Login(){
   const {user,refresh}=useAuth(),nav=useNavigate(); const [error,setError]=useState(''),[busy,setBusy]=useState(false);
   if(user)return <Navigate to="/" replace/>;
@@ -25,7 +29,7 @@ function Login(){
     catch(x){setError((x as Error).message)}finally{setBusy(false)}}
   return <div className="login"><section className="login-brand"><img src="/img/onrtdpj-logo-tagline.png"/><div><span>Sistema interno</span><h1>Gestão financeira clara, segura e centralizada.</h1><p>Contas, documentos, fornecedores e aprovações em um único fluxo.</p></div></section>
     <main className="login-card"><img src="/img/onrtdpj-icone.png"/><p className="eyebrow">Bem-vindo</p><h2>Acesse sua conta</h2><p>Use suas credenciais do sistema para continuar.</p>
-      <form onSubmit={submit}><label>E-mail<input name="email" type="email" required autoFocus/></label><label>Senha<input name="password" type="password" required/></label><label className="check"><input name="rememberMe" type="checkbox"/> Manter conectado</label>{error&&<div className="alert error">{error}</div>}<button disabled={busy}>{busy?'Entrando…':'Entrar no sistema'}</button></form></main></div>;
+      <form onSubmit={submit}><label>E-mail<input name="email" type="email" required autoFocus/></label><label>Senha<CampoSenha name="password" required/></label><label className="check"><input name="rememberMe" type="checkbox"/> Manter conectado</label>{error&&<div className="alert error">{error}</div>}<button disabled={busy}>{busy?'Entrando…':'Entrar no sistema'}</button></form></main></div>;
 }
 const groups=[['Painel',[['Início','/']]],['Financeiro',[['Contas a pagar','/contas-a-pagar'],['Boletos','/boletos'],['Notas fiscais','/notas-fiscais'],['Relatórios','/relatorios']]],['Cadastros',[['Fornecedores','/fornecedores'],['Contas bancárias','/contas-bancarias'],['Cartões','/cartoes'],['Categorias','/categorias'],['Centros de custo','/centros-de-custo']]],['Documentos',[['Central de documentos','/central-de-documentos']]]] as const;
 function Layout(){
@@ -83,7 +87,7 @@ function IaCard({name}:{name:string}){
   {editing&&<div className="modal"><form className="dialog" onSubmit={salvar}><h2>Configurar {name}</h2><div className="form-grid">
     <label>Provedor<select value={editing.provedor} onChange={e=>setEditing({...editing,provedor:e.target.value})}><option value="Gemini">Gemini</option><option value="OpenAi">OpenAI</option><option value="Anthropic">Anthropic</option></select></label>
     <label>Modelo<input required value={editing.modelo} onChange={e=>setEditing({...editing,modelo:e.target.value})}/></label>
-    <label>Chave de API<input type="password" autoComplete="off" placeholder={data?.apiKeyDefinida?'Deixe em branco para manter a atual':'Obrigatória na primeira configuração'} value={editing.apiKey} onChange={e=>setEditing({...editing,apiKey:e.target.value})}/></label>
+    <label>Chave de API<CampoSenha autoComplete="off" placeholder={data?.apiKeyDefinida?'Deixe em branco para manter a atual':'Obrigatória na primeira configuração'} value={editing.apiKey} onChange={e=>setEditing({...editing,apiKey:e.target.value})}/></label>
     <label>Timeout (segundos)<input type="number" required min={1} value={editing.timeoutSegundos} onChange={e=>setEditing({...editing,timeoutSegundos:Number(e.target.value)})}/></label>
     <label className="check"><input type="checkbox" checked={editing.ativo} onChange={e=>setEditing({...editing,ativo:e.target.checked})}/> Ativo</label>
    </div><div className="actions"><button type="button" className="secondary" onClick={()=>setEditing(null)}>Cancelar</button><button>Salvar</button></div></form></div>}
