@@ -7,5 +7,7 @@ public sealed record DadosBancariosInput(
     string Agencia,
     string Conta,
     TipoContaBancaria Tipo,
+    string NomeTitular,
+    string CpfCnpjTitular,
     string? ChavePix,
     bool Principal);

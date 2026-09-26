@@ -62,6 +62,34 @@ function FieldInput({field,value,onChange}:{field:Field;value:any;onChange:(v:an
 function Crud({config}:{config:Config}){const {user}=useAuth(),{data,load}=useLoad<any[]>(config.endpoint),[editing,setEditing]=useState<any|null>(null),[msg,setMsg]=useState('');
  async function save(e:React.FormEvent){e.preventDefault();const body={...editing};delete body.id;delete body.criadoEm;delete body.atualizadoEm;Object.keys(body).filter(k=>typeof body[k]==='object').forEach(k=>delete body[k]);try{const path=config.endpoint.split('?')[0]+(editing.id?'/'+editing.id:'');const result:any=await api(path,{method:editing.id?'PUT':'POST',body:JSON.stringify(body)});const op:Operation=result.operacao||result;if(op.sucesso===false)throw new Error(op.erros.join(' '));setEditing(null);setMsg('Registro salvo com sucesso.');load()}catch(x){setMsg((x as Error).message)}}
  return <><Title title={config.title} subtitle={config.subtitle} action={<button onClick={()=>setEditing(config===configs.cartoes?{responsavelId:user?.id}:config===configs.fornecedores?{ativo:true}:{})}>Novo cadastro</button>}/>{msg&&<div className="alert">{msg}</div>}<section className="card"><Table rows={data||[]} cols={config.cols} onClick={setEditing}/></section>{editing&&<div className="modal"><form className="dialog" onSubmit={save}><h2>{editing.id?'Editar':'Novo'} registro</h2><div className="form-grid">{config.fields.map(f=><FieldInput key={f.name} field={f} value={editing[f.name]} onChange={v=>setEditing({...editing,[f.name]:v})}/>)}</div><div className="actions"><button type="button" className="secondary" onClick={()=>setEditing(null)}>Cancelar</button><button>Salvar</button></div></form></div>}</>}
+const tipoContaOpcoes:[string,string][]=[['Corrente','Corrente'],['Poupanca','Poupança']];
+const dadosBancariosVazio={banco:'',agencia:'',conta:'',tipo:'Corrente',nomeTitular:'',cpfCnpjTitular:'',chavePix:'',principal:false};
+function DadosBancarios({fornecedorId}:{fornecedorId:string}){
+ const {data:fornecedor,load}=useLoad<any>('/api/fornecedores/'+fornecedorId);
+ const lista=fornecedor?.dadosBancarios||[];
+ const [novo,setNovo]=useState<any>(dadosBancariosVazio);
+ const [msg,setMsg]=useState('');
+ async function adicionar(e:React.FormEvent){e.preventDefault();
+  try{const r:any=await api('/api/fornecedores/'+fornecedorId+'/dados-bancarios',{method:'POST',body:JSON.stringify({...novo,chavePix:novo.chavePix||null})});const op=r.operacao||r;if(op.sucesso===false)throw new Error(op.erros.join(' '));
+   setNovo(dadosBancariosVazio);setMsg('Dados bancários adicionados com sucesso.');load()}
+  catch(x){setMsg((x as Error).message)}}
+ async function remover(id:string){if(!confirm('Remover este registro de dados bancários?'))return;const r:any=await api('/api/fornecedores/dados-bancarios/'+id,{method:'DELETE'});if(r.sucesso===false){setMsg(r.erros.join(' '));return}setMsg('Registro removido.');load()}
+ return <section className="contratos"><h3>Dados bancários</h3>{msg&&<p className="alert">{msg}</p>}
+  <div className="table-wrap"><table><thead><tr><th>Banco</th><th>Agência</th><th>Conta</th><th>Titular</th><th>Principal</th><th></th></tr></thead><tbody>
+   {lista.length?lista.map((d:any)=><tr key={d.id}><td>{d.banco}</td><td>{d.agencia}</td><td>{d.conta}</td><td>{d.nomeTitular}</td><td>{d.principal?'Sim':'Não'}</td><td><button type="button" className="link danger" onClick={()=>remover(d.id)}>Excluir</button></td></tr>):<tr><td colSpan={6} className="empty">Nenhum dado bancário cadastrado.</td></tr>}
+  </tbody></table></div>
+  <form className="form-grid" onSubmit={adicionar}>
+   <label>Banco<input required value={novo.banco} onChange={e=>setNovo({...novo,banco:e.target.value})}/></label>
+   <label>Agência<input required value={novo.agencia} onChange={e=>setNovo({...novo,agencia:e.target.value})}/></label>
+   <label>Conta<input required value={novo.conta} onChange={e=>setNovo({...novo,conta:e.target.value})}/></label>
+   <label>Tipo de conta<select value={novo.tipo} onChange={e=>setNovo({...novo,tipo:e.target.value})}>{tipoContaOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+   <label>Nome do titular<input required value={novo.nomeTitular} onChange={e=>setNovo({...novo,nomeTitular:e.target.value})}/></label>
+   <label>CPF/CNPJ do titular<input required value={novo.cpfCnpjTitular} onChange={e=>setNovo({...novo,cpfCnpjTitular:e.target.value})}/></label>
+   <label>PIX<input value={novo.chavePix} onChange={e=>setNovo({...novo,chavePix:e.target.value})}/></label>
+   <Toggle label="Marcar como principal" checked={!!novo.principal} onChange={v=>setNovo({...novo,principal:v})}/>
+   <div className="actions full"><button>Adicionar dados bancários</button></div>
+  </form>
+ </section>}
 function Contratos({fornecedorId}:{fornecedorId:string}){
  const {data,load}=useLoad<any[]>('/api/fornecedores/'+fornecedorId+'/contratos');
  const [novo,setNovo]=useState<any>({nome:'',vigenciaInicio:'',vigenciaFim:''});
@@ -93,32 +121,52 @@ function Fornecedores(){
  const [editing,setEditing]=useState<any|null>(null),[msg,setMsg]=useState('');
  const [contratoNovo,setContratoNovo]=useState<any>(contratoNovoVazio);
  const [arquivoNovo,setArquivoNovo]=useState<File|null>(null);
+ const [dadosBancariosNovo,setDadosBancariosNovo]=useState<any>(dadosBancariosVazio);
+ function limparNovo(){setContratoNovo(contratoNovoVazio);setArquivoNovo(null);setDadosBancariosNovo(dadosBancariosVazio)}
  async function save(e:React.FormEvent){e.preventDefault();
   if(!editing.id&&arquivoNovo&&(!contratoNovo.nome||!contratoNovo.vigenciaInicio||!contratoNovo.vigenciaFim)){setMsg('Preencha nome e vigência do contrato, ou remova o arquivo selecionado.');return}
+  const preencheuDadosBancarios=!editing.id&&(dadosBancariosNovo.banco||dadosBancariosNovo.agencia||dadosBancariosNovo.conta||dadosBancariosNovo.nomeTitular||dadosBancariosNovo.cpfCnpjTitular);
+  if(preencheuDadosBancarios&&(!dadosBancariosNovo.banco||!dadosBancariosNovo.agencia||!dadosBancariosNovo.conta||!dadosBancariosNovo.nomeTitular||!dadosBancariosNovo.cpfCnpjTitular)){setMsg('Preencha banco, agência, conta, nome e CPF/CNPJ do titular, ou deixe os campos de dados bancários todos em branco.');return}
   const body={...editing};delete body.id;delete body.criadoEm;delete body.atualizadoEm;Object.keys(body).filter(k=>typeof body[k]==='object').forEach(k=>delete body[k]);
   try{const path='/api/fornecedores'+(editing.id?'/'+editing.id:'');const result:any=await api(path,{method:editing.id?'PUT':'POST',body:JSON.stringify(body)});const op:Operation=result.operacao||result;if(op.sucesso===false)throw new Error(op.erros.join(' '));
    if(!editing.id&&result.entidade){
     const criado=result.entidade;
-    let avisoContrato='';
+    let aviso='';
     if(arquivoNovo){
      const f=new FormData();f.append('arquivo',arquivoNovo);f.append('nome',contratoNovo.nome);f.append('vigenciaInicio',contratoNovo.vigenciaInicio);f.append('vigenciaFim',contratoNovo.vigenciaFim);
      try{const rc:any=await api('/api/fornecedores/'+criado.id+'/contratos',{method:'POST',body:f});const opc=rc.operacao||rc;if(opc.sucesso===false)throw new Error(opc.erros.join(' '))}
-     catch(x){avisoContrato=' Porém, o contrato não foi anexado: '+(x as Error).message}
+     catch(x){aviso+=' Porém, o contrato não foi anexado: '+(x as Error).message}
     }
-    setEditing({...criado});setContratoNovo(contratoNovoVazio);setArquivoNovo(null);
-    setMsg('Fornecedor criado com sucesso.'+avisoContrato)
+    if(preencheuDadosBancarios){
+     try{const rd:any=await api('/api/fornecedores/'+criado.id+'/dados-bancarios',{method:'POST',body:JSON.stringify({...dadosBancariosNovo,chavePix:dadosBancariosNovo.chavePix||null})});const opd=rd.operacao||rd;if(opd.sucesso===false)throw new Error(opd.erros.join(' '))}
+     catch(x){aviso+=' Porém, os dados bancários não foram salvos: '+(x as Error).message}
+    }
+    setEditing({...criado});limparNovo();
+    setMsg('Fornecedor criado com sucesso.'+aviso)
    }else{setEditing(null);setMsg('Fornecedor salvo com sucesso.')}
    load()}catch(x){setMsg((x as Error).message)}}
- return <><Title title={config.title} subtitle={config.subtitle} action={<button onClick={()=>{setEditing({ativo:true});setContratoNovo(contratoNovoVazio);setArquivoNovo(null)}}>Novo cadastro</button>}/>{msg&&<div className="alert">{msg}</div>}<section className="card"><Table rows={data||[]} cols={config.cols} onClick={x=>setEditing({...x})}/></section>
-  {editing&&<div className="modal"><div className="dialog"><form onSubmit={save}><h2>{editing.id?'Editar':'Novo'} fornecedor</h2><div className="form-grid">{config.fields.map(f=><FieldInput key={f.name} field={f} value={editing[f.name]} onChange={v=>setEditing({...editing,[f.name]:v})}/>)}</div>
+ return <><Title title={config.title} subtitle={config.subtitle} action={<button onClick={()=>{setEditing({ativo:true});limparNovo()}}>Novo cadastro</button>}/>{msg&&<div className="alert">{msg}</div>}<section className="card"><Table rows={data||[]} cols={config.cols} onClick={x=>setEditing({...x})} rowClassName={r=>r.ativo===false&&'row-inactive'}/></section>
+  {editing&&<div className="modal"><div className="dialog"><form id="form-fornecedor" onSubmit={save}><h2>{editing.id?'Editar':'Novo'} fornecedor</h2><div className="form-grid">{config.fields.map(f=><FieldInput key={f.name} field={f} value={editing[f.name]} onChange={v=>setEditing({...editing,[f.name]:v})}/>)}</div>
+   {!editing.id&&<section className="contratos"><h3>Dados bancários (opcional)</h3><div className="form-grid">
+     <label>Banco<input value={dadosBancariosNovo.banco} onChange={e=>setDadosBancariosNovo({...dadosBancariosNovo,banco:e.target.value})}/></label>
+     <label>Agência<input value={dadosBancariosNovo.agencia} onChange={e=>setDadosBancariosNovo({...dadosBancariosNovo,agencia:e.target.value})}/></label>
+     <label>Conta<input value={dadosBancariosNovo.conta} onChange={e=>setDadosBancariosNovo({...dadosBancariosNovo,conta:e.target.value})}/></label>
+     <label>Tipo de conta<select value={dadosBancariosNovo.tipo} onChange={e=>setDadosBancariosNovo({...dadosBancariosNovo,tipo:e.target.value})}>{tipoContaOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+     <label>Nome do titular<input value={dadosBancariosNovo.nomeTitular} onChange={e=>setDadosBancariosNovo({...dadosBancariosNovo,nomeTitular:e.target.value})}/></label>
+     <label>CPF/CNPJ do titular<input value={dadosBancariosNovo.cpfCnpjTitular} onChange={e=>setDadosBancariosNovo({...dadosBancariosNovo,cpfCnpjTitular:e.target.value})}/></label>
+     <label>PIX<input value={dadosBancariosNovo.chavePix} onChange={e=>setDadosBancariosNovo({...dadosBancariosNovo,chavePix:e.target.value})}/></label>
+     <Toggle label="Marcar como principal" checked={!!dadosBancariosNovo.principal} onChange={v=>setDadosBancariosNovo({...dadosBancariosNovo,principal:v})}/>
+   </div></section>}
    {!editing.id&&<section className="contratos"><h3>Contrato (opcional)</h3><div className="form-grid">
      <label>Nome do contrato<input value={contratoNovo.nome} onChange={e=>setContratoNovo({...contratoNovo,nome:e.target.value})}/></label>
      <label>Vigência início<input type="date" value={contratoNovo.vigenciaInicio} onChange={e=>setContratoNovo({...contratoNovo,vigenciaInicio:e.target.value})}/></label>
      <label>Vigência fim<input type="date" value={contratoNovo.vigenciaFim} onChange={e=>setContratoNovo({...contratoNovo,vigenciaFim:e.target.value})}/></label>
      <label>Arquivo<input type="file" onChange={e=>setArquivoNovo(e.target.files?.[0]||null)}/></label>
    </div></section>}
-   <div className="actions"><button type="button" className="secondary" onClick={()=>setEditing(null)}>Cancelar</button><button>Salvar</button></div></form>
+   </form>
+   {editing.id&&<DadosBancarios fornecedorId={editing.id}/>}
    {editing.id&&<Contratos fornecedorId={editing.id}/>}
+   <div className="actions"><button type="button" className="secondary" onClick={()=>setEditing(null)}>Cancelar</button><button type="submit" form="form-fornecedor">Salvar</button></div>
   </div></div>}
  </>}
 const camposConta:[string,string,string?][]=[['descricao','Descrição','text'],['vencimento','Vencimento','date'],['valorOriginal','Valor original','number'],['desconto','Desconto','number'],['juros','Juros','number'],['multa','Multa','number']];

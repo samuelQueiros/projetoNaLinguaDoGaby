@@ -120,6 +120,12 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
             return erroPermissao;
         }
 
+        var erroValidacao = ValidarDadosBancarios(input);
+        if (erroValidacao is not null)
+        {
+            return erroValidacao;
+        }
+
         var fornecedorExiste = await db.Fornecedores.AnyAsync(f => f.Id == fornecedorId && f.ExcluidoEm == null);
         if (!fornecedorExiste)
         {
@@ -139,6 +145,8 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
             Agencia = input.Agencia,
             Conta = input.Conta,
             Tipo = input.Tipo,
+            NomeTitular = input.NomeTitular,
+            CpfCnpjTitular = SomenteDigitos(input.CpfCnpjTitular),
             ChavePix = input.ChavePix,
             Principal = input.Principal,
         };
@@ -160,6 +168,12 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
             return erroPermissao;
         }
 
+        var erroValidacao = ValidarDadosBancarios(input);
+        if (erroValidacao is not null)
+        {
+            return erroValidacao;
+        }
+
         var dados = await db.DadosBancariosFornecedores.FirstOrDefaultAsync(d => d.Id == dadosBancariosId);
         if (dados is null)
         {
@@ -177,6 +191,8 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
         dados.Agencia = input.Agencia;
         dados.Conta = input.Conta;
         dados.Tipo = input.Tipo;
+        dados.NomeTitular = input.NomeTitular;
+        dados.CpfCnpjTitular = SomenteDigitos(input.CpfCnpjTitular);
         dados.ChavePix = input.ChavePix;
         dados.Principal = input.Principal;
 
@@ -323,11 +339,13 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
     }
 
     /// <summary>
-    /// Só campos não sensíveis — nunca Conta/ChavePix, que são cifrados em
-    /// repouso (AES-256-GCM) especificamente para não circular em texto
-    /// plano; gravar o valor decifrado no JSONB da auditoria anularia essa
-    /// proteção. "Alterada: sim/não" basta pra rastrear que a mudança
-    /// aconteceu, sem duplicar o dado sensível em outra tabela.
+    /// Só campos não sensíveis — nunca Conta/ChavePix/CpfCnpjTitular, que são
+    /// cifrados em repouso (AES-256-GCM) especificamente para não circular em
+    /// texto plano; gravar o valor decifrado no JSONB da auditoria anularia
+    /// essa proteção. "Preenchida: sim/não" basta pra rastrear que a mudança
+    /// aconteceu, sem duplicar o dado sensível em outra tabela. NomeTitular
+    /// não é um documento/credencial, então vai direto (mesmo tratamento de
+    /// Banco/Agência).
     /// </summary>
     private static object DescricaoAuditavel(DadosBancariosFornecedor dados) => new
     {
@@ -335,10 +353,27 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
         dados.Banco,
         dados.Agencia,
         dados.Tipo,
+        dados.NomeTitular,
         dados.Principal,
         ContaPreenchida = !string.IsNullOrEmpty(dados.Conta),
         ChavePixPreenchida = !string.IsNullOrEmpty(dados.ChavePix),
+        CpfCnpjTitularPreenchido = !string.IsNullOrEmpty(dados.CpfCnpjTitular),
     };
+
+    private static ResultadoOperacao? ValidarDadosBancarios(DadosBancariosInput input)
+    {
+        if (string.IsNullOrWhiteSpace(input.NomeTitular))
+        {
+            return ResultadoOperacao.Falha("Informe o nome do titular da conta.");
+        }
+
+        if (string.IsNullOrWhiteSpace(input.CpfCnpjTitular))
+        {
+            return ResultadoOperacao.Falha("Informe o CPF/CNPJ do titular da conta.");
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Cadastrar/editar/remover dados bancários (conta e chave PIX) de

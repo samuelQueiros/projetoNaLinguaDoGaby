@@ -194,6 +194,14 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
                     v => v == null ? null : criptografia.Cifrar(v, "DadosBancariosFornecedor.ChavePix"),
                     v => v == null ? null : criptografia.Decifrar(v, "DadosBancariosFornecedor.ChavePix"));
 
+            b.Property(d => d.NomeTitular).IsRequired().HasMaxLength(200);
+
+            b.Property(d => d.CpfCnpjTitular)
+                .HasMaxLength(500) // cifrado ocupa mais espaço que o valor original
+                .HasConversion(
+                    v => v == null ? null : criptografia.Cifrar(v, "DadosBancariosFornecedor.CpfCnpjTitular"),
+                    v => v == null ? null : criptografia.Decifrar(v, "DadosBancariosFornecedor.CpfCnpjTitular"));
+
             b.HasOne(d => d.Fornecedor)
                 .WithMany(f => f.DadosBancarios)
                 .HasForeignKey(d => d.FornecedorId)

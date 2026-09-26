@@ -29,6 +29,19 @@ public class DadosBancariosFornecedor : IEntidadeAuditavel
 
     public TipoContaBancaria Tipo { get; set; }
 
+    public string NomeTitular { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CPF/CNPJ do titular da conta — pode divergir do CnpjCpf do
+    /// fornecedor (ex.: conta em nome do sócio, ou de outra empresa do
+    /// grupo). Cifrado em repouso, mesma justificativa de <see cref="Conta"/>.
+    /// Nullable no banco (apesar de a Application exigir preenchimento em
+    /// toda gravação nova) só para a coluna poder ser adicionada com
+    /// segurança numa tabela que já tenha linhas — um defaultValue de
+    /// migração cairia fora do ValueConverter e quebraria a decriptação.
+    /// </summary>
+    public string? CpfCnpjTitular { get; set; }
+
     public string? ChavePix { get; set; }
 
     public bool Principal { get; set; }
