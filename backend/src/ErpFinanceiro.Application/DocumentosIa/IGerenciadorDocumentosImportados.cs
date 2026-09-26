@@ -1,5 +1,6 @@
 using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Domain;
+using ErpFinanceiro.Application;
 
 namespace ErpFinanceiro.Application.DocumentosIa;
 

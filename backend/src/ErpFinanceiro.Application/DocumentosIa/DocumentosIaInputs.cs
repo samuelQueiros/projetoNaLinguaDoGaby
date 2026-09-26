@@ -46,11 +46,6 @@ public sealed record FiltroDocumentosImportados(
     int Pagina = 1,
     int TamanhoPagina = 20);
 
-public sealed record ResultadoPaginado<T>(IReadOnlyList<T> Itens, int Total, int Pagina, int TamanhoPagina)
-{
-    public int TotalPaginas => TamanhoPagina <= 0 ? 1 : Math.Max(1, (int)Math.Ceiling(Total / (double)TamanhoPagina));
-}
-
 /// <summary>
 /// Contagens agregadas no banco (não sobre a página atual) para os
 /// indicadores no topo da Central de Documentos.

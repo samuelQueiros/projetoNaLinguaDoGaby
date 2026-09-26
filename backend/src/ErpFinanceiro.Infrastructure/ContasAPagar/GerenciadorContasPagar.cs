@@ -197,7 +197,26 @@ public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditori
             .Include(c => c.CriadoPor)
             .FirstOrDefaultAsync(c => c.Id == id);
 
-    public async Task<IReadOnlyList<ContaPagar>> ListarAsync(FiltroContasPagar filtro)
+    public async Task<IReadOnlyList<ContaPagar>> ListarAsync(FiltroContasPagar filtro) =>
+        await ConstruirQuery(filtro).OrderBy(c => c.Vencimento).ToListAsync();
+
+    public async Task<ResultadoPaginado<ContaPagar>> ListarPaginadoAsync(FiltroContasPagar filtro)
+    {
+        var query = ConstruirQuery(filtro).OrderBy(c => c.Vencimento);
+        var total = await query.CountAsync();
+
+        var pagina = Math.Max(1, filtro.Pagina);
+        var tamanho = filtro.TamanhoPagina <= 0 ? 20 : Math.Min(filtro.TamanhoPagina, 100);
+
+        var itens = await query
+            .Skip((pagina - 1) * tamanho)
+            .Take(tamanho)
+            .ToListAsync();
+
+        return new ResultadoPaginado<ContaPagar>(itens, total, pagina, tamanho);
+    }
+
+    private IQueryable<ContaPagar> ConstruirQuery(FiltroContasPagar filtro)
     {
         var query = db.ContasPagar.AsNoTracking()
             .Include(c => c.Fornecedor)
@@ -235,7 +254,7 @@ public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditori
             query = query.Where(c => c.Vencimento <= vencimentoFinal);
         }
 
-        return await query.OrderBy(c => c.Vencimento).ToListAsync();
+        return query;
     }
 
     private async Task<List<string>> ValidarAsync(ContaPagarInput input)

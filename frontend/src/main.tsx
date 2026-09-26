@@ -198,15 +198,32 @@ function RegistrarPagamento({conta,onRegistrado}:{conta:any;onRegistrado:()=>voi
    <div className="actions full"><button>Confirmar pagamento</button></div>
   </form>
  </section>}
+const tamanhoPaginaContas=20;
 function Contas(){
- const {data,load}=useLoad<any[]>('/api/contas-a-pagar'),{data:fornecedores}=useLoad<any[]>('/api/fornecedores?incluirExcluidos=false'),{data:formasPagamento}=useLoad<any[]>('/api/formas-pagamento?apenasAtivos=true');
+ const [filtro,setFiltro]=useState<any>({}),[pagina,setPagina]=useState(1);
+ function atualizarFiltro(novo:any){setFiltro(novo);setPagina(1)}
+ const qs=Object.entries({...filtro,pagina,tamanhoPagina:tamanhoPaginaContas}).filter(([,v])=>v).map(([k,v])=>k+'='+encodeURIComponent(v as string)).join('&');
+ const {data,load}=useLoad<any>('/api/contas-a-pagar/paginado'+(qs?'?'+qs:'')),{data:fornecedores}=useLoad<any[]>('/api/fornecedores?incluirExcluidos=false'),{data:formasPagamento}=useLoad<any[]>('/api/formas-pagamento?apenasAtivos=true');
  const [editing,setEditing]=useState<any|null>(null),[msg,setMsg]=useState('');
+ const contas=data?.itens||[],totalPaginas=data?.totalPaginas||1;
+ const filtroAtivo=filtro.fornecedorId||filtro.statusFinanceiro||filtro.statusAprovacao||filtro.vencimentoInicial||filtro.vencimentoFinal;
  async function salvar(e:React.FormEvent){e.preventDefault();const body={...editing};delete body.id;delete body.criadoEm;delete body.atualizadoEm;delete body._aviso;Object.keys(body).filter(k=>typeof body[k]==='object').forEach(k=>delete body[k]);try{const r:any=await api('/api/contas-a-pagar'+(editing.id?'/'+editing.id:''),{method:editing.id?'PUT':'POST',body:JSON.stringify(body)});const op=r.operacao||r;if(op.sucesso===false)throw new Error(op.erros.join(' '));setEditing(null);setMsg('Conta salva com sucesso.');load()}catch(x){setMsg((x as Error).message)}}
  async function action(name:string){const motivo=name==='rejeitar'?prompt('Motivo da rejeição:'):undefined;const r:any=await api('/api/contas-a-pagar/'+editing.id+'/'+name,{method:'POST',body:motivo?JSON.stringify({motivo}):undefined});if(r.sucesso===false){setMsg(r.erros.join(' '));return}setEditing(null);setMsg('Ação registrada com sucesso.');load()}
  const avisoFornecedorInativo=editing?.id&&contaComFornecedorInativoPendente(editing);
  const pendenteDeDecisao=editing?.id&&(editing.statusAprovacao==='Cadastrada'||editing.statusAprovacao==='AguardandoAprovacao');
  const valorFinalPreview=(Number(editing?.valorOriginal)||0)-(Number(editing?.desconto)||0)+(Number(editing?.juros)||0)+(Number(editing?.multa)||0);
- return <><Title title="Contas a pagar" subtitle="Lançamentos, aprovação e situação financeira." action={<button onClick={()=>setEditing({desconto:0,juros:0,multa:0})}>Nova conta</button>}/>{!editing&&msg&&<div className="alert">{msg}</div>}<section className="card"><Table rows={(data||[]).map(r=>({...r,_aviso:contaComFornecedorInativoPendente(r)}))} onClick={x=>setEditing({...x})} rowClassName={r=>contaComFornecedorInativoPendente(r)&&'row-warning'} cols={[['','_aviso','warn'],['Descrição','descricao'],['Fornecedor','fornecedor.razaoSocial'],['Vencimento','vencimento','date'],['Valor final','valorFinal','money'],['Aprovação','statusAprovacao'],['Financeiro','statusFinanceiro']]}/></section>
+ return <><Title title="Contas a pagar" subtitle="Lançamentos, aprovação e situação financeira." action={<button onClick={()=>setEditing({desconto:0,juros:0,multa:0})}>Nova conta</button>}/>{!editing&&msg&&<div className="alert">{msg}</div>}
+  <section className="card form-grid">
+   <label>Fornecedor<select value={filtro.fornecedorId||''} onChange={e=>atualizarFiltro({...filtro,fornecedorId:e.target.value})}><option value="">Todos</option>{fornecedores?.map(x=><option key={x.id} value={x.id}>{x.razaoSocial}</option>)}</select></label>
+   <label>Status financeiro<select value={filtro.statusFinanceiro||''} onChange={e=>atualizarFiltro({...filtro,statusFinanceiro:e.target.value})}><option value="">Todos</option>{statusFinanceiroOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+   <label>Aprovação<select value={filtro.statusAprovacao||''} onChange={e=>atualizarFiltro({...filtro,statusAprovacao:e.target.value})}><option value="">Todos</option>{statusAprovacaoOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+   <label>Vencimento de<input type="date" value={filtro.vencimentoInicial||''} onChange={e=>atualizarFiltro({...filtro,vencimentoInicial:e.target.value})}/></label>
+   <label>Vencimento até<input type="date" value={filtro.vencimentoFinal||''} onChange={e=>atualizarFiltro({...filtro,vencimentoFinal:e.target.value})}/></label>
+   {filtroAtivo&&<div className="actions full"><button type="button" className="secondary" onClick={()=>atualizarFiltro({})}>Limpar filtros</button></div>}
+  </section>
+  <section className="card"><Table rows={contas.map((r:any)=>({...r,_aviso:contaComFornecedorInativoPendente(r)}))} onClick={x=>setEditing({...x})} rowClassName={r=>contaComFornecedorInativoPendente(r)&&'row-warning'} cols={[['','_aviso','warn'],['Descrição','descricao'],['Fornecedor','fornecedor.razaoSocial'],['Vencimento','vencimento','date'],['Valor final','valorFinal','money'],['Aprovação','statusAprovacao'],['Financeiro','statusFinanceiro']]}/>
+   <div className="pagination"><button type="button" className="secondary" disabled={pagina<=1} onClick={()=>setPagina(p=>p-1)}>Anterior</button><span>Página {data?.pagina||1} de {totalPaginas} · {data?.total??0} registro(s)</span><button type="button" className="secondary" disabled={pagina>=totalPaginas} onClick={()=>setPagina(p=>p+1)}>Próxima</button></div>
+  </section>
   {editing&&<div className="modal"><div className="dialog"><form onSubmit={salvar}><h2>{editing.id?'Detalhe da conta':'Nova conta'}</h2>{msg&&<div className="alert">{msg}</div>}{editing.id&&<p><b>Aprovação:</b> {editing.statusAprovacao} · <b>Financeiro:</b> {editing.statusFinanceiro}</p>}<div className="form-grid">
     <label>Fornecedor<select required value={editing.fornecedorId||''} onChange={e=>setEditing({...editing,fornecedorId:e.target.value})}><option value="">Selecione</option>{fornecedores?.map(x=><option key={x.id} value={x.id}>{x.razaoSocial}</option>)}</select></label>
     <label>Forma de pagamento<select value={editing.formaPagamentoId||''} onChange={e=>setEditing({...editing,formaPagamentoId:e.target.value||null})}><option value="">Não informada</option>{formasPagamento?.map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>

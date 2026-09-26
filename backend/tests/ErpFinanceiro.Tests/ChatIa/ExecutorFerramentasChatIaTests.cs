@@ -44,6 +44,8 @@ public class ExecutorFerramentasChatIaTests
             UltimoFiltro = filtro;
             return Task.FromResult<IReadOnlyList<ContaPagar>>(Retorno);
         }
+
+        public Task<ResultadoPaginado<ContaPagar>> ListarPaginadoAsync(FiltroContasPagar filtro) => throw new NotSupportedException();
     }
 
     private sealed class FornecedoresFalso : IGerenciadorFornecedores

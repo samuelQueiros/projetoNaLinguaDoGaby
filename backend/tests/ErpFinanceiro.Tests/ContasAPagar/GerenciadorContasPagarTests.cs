@@ -195,6 +195,43 @@ public class GerenciadorContasPagarTests
     }
 
     [Fact]
+    public async Task ListarPaginadoAsync_pagina_no_banco_e_devolve_total_real()
+    {
+        var (_, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
+        for (var i = 0; i < 5; i++)
+        {
+            await gerenciador.CriarAsync(InputPadrao(fornecedorId, 100m + i) with { Descricao = $"Conta {i}" }, usuarioId);
+        }
+
+        var pagina1 = await gerenciador.ListarPaginadoAsync(new FiltroContasPagar(FornecedorId: fornecedorId, TamanhoPagina: 2, Pagina: 1));
+        var pagina2 = await gerenciador.ListarPaginadoAsync(new FiltroContasPagar(FornecedorId: fornecedorId, TamanhoPagina: 2, Pagina: 2));
+        var pagina3 = await gerenciador.ListarPaginadoAsync(new FiltroContasPagar(FornecedorId: fornecedorId, TamanhoPagina: 2, Pagina: 3));
+
+        Assert.Equal(5, pagina1.Total);
+        Assert.Equal(3, pagina1.TotalPaginas);
+        Assert.Equal(2, pagina1.Itens.Count);
+        Assert.Equal(2, pagina2.Itens.Count);
+        Assert.Single(pagina3.Itens);
+        Assert.Empty(pagina1.Itens.Select(c => c.Id).Intersect(pagina2.Itens.Select(c => c.Id)));
+    }
+
+    [Fact]
+    public async Task ListarPaginadoAsync_aplica_os_mesmos_filtros_de_ListarAsync()
+    {
+        var (db, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
+        await gerenciador.CriarAsync(InputPadrao(fornecedorId, 100m), usuarioId);
+        var outroFornecedor = new Fornecedor { Id = Guid.NewGuid(), RazaoSocial = "Outro", CnpjCpf = "99999999000199" };
+        db.Fornecedores.Add(outroFornecedor);
+        await db.SaveChangesAsync();
+        await gerenciador.CriarAsync(InputPadrao(outroFornecedor.Id, 50m), usuarioId);
+
+        var resultado = await gerenciador.ListarPaginadoAsync(new FiltroContasPagar(FornecedorId: fornecedorId));
+
+        Assert.Equal(1, resultado.Total);
+        Assert.Single(resultado.Itens);
+    }
+
+    [Fact]
     public async Task ListarAsync_oculta_excluidas_por_padrao()
     {
         var (_, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();

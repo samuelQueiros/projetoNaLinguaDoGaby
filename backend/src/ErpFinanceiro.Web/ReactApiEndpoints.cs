@@ -96,6 +96,8 @@ public static class ReactApiEndpoints
     static void Contas(RouteGroupBuilder a)
     {
         a.MapGet("/contas-a-pagar", (Guid? fornecedorId, StatusFinanceiro? statusFinanceiro, StatusAprovacao? statusAprovacao, DateOnly? vencimentoInicial, DateOnly? vencimentoFinal, IGerenciadorContasPagar g) => g.ListarAsync(new(fornecedorId, statusFinanceiro, statusAprovacao, vencimentoInicial, vencimentoFinal)));
+        a.MapGet("/contas-a-pagar/paginado", (Guid? fornecedorId, StatusFinanceiro? statusFinanceiro, StatusAprovacao? statusAprovacao, DateOnly? vencimentoInicial, DateOnly? vencimentoFinal, int pagina, int tamanhoPagina, IGerenciadorContasPagar g) =>
+            g.ListarPaginadoAsync(new(fornecedorId, statusFinanceiro, statusAprovacao, vencimentoInicial, vencimentoFinal, Pagina: Math.Max(1, pagina), TamanhoPagina: tamanhoPagina <= 0 ? 20 : tamanhoPagina)));
         a.MapGet("/contas-a-pagar/{id:guid}", async (Guid id, IGerenciadorContasPagar g) => await g.ObterAsync(id) is { } x ? Results.Ok(x) : Results.NotFound());
         a.MapPost("/contas-a-pagar", async (ContaPagarInput r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorContasPagar g) => await g.CriarAsync(r, await Uid(p, um)));
         a.MapPut("/contas-a-pagar/{id:guid}", async (Guid id, ContaPagarInput r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorContasPagar g) => await g.EditarAsync(id, r, await Uid(p, um)));

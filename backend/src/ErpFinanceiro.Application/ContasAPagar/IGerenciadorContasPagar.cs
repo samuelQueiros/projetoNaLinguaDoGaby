@@ -1,3 +1,4 @@
+using ErpFinanceiro.Application;
 using ErpFinanceiro.Domain;
 
 namespace ErpFinanceiro.Application.ContasAPagar;
@@ -20,4 +21,7 @@ public interface IGerenciadorContasPagar
     Task<ContaPagar?> ObterAsync(Guid id);
 
     Task<IReadOnlyList<ContaPagar>> ListarAsync(FiltroContasPagar filtro);
+
+    /// <summary>Como <see cref="ListarAsync"/>, mas paginado no banco — usado pela tela de Contas a Pagar.</summary>
+    Task<ResultadoPaginado<ContaPagar>> ListarPaginadoAsync(FiltroContasPagar filtro);
 }
