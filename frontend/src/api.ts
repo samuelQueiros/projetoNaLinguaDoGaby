@@ -16,3 +16,5 @@ export async function api<T = unknown>(path:string, init:RequestInit = {}):Promi
 export const money = (n:number = 0) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n);
 export const date = (v:string) => v ? new Intl.DateTimeFormat('pt-BR',{timeZone:'UTC'}).format(new Date(v + (v.length === 10 ? 'T00:00:00Z':''))) : '—';
 export const nested = (obj:any, path:string) => path.split('.').reduce((x,k) => x?.[k],obj);
+export const hoje = () => new Date().toISOString().slice(0,10);
+export const semLetras = (v:string) => v.replace(/\p{L}/gu,'');

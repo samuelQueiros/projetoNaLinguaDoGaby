@@ -1,3 +1,4 @@
+using ErpFinanceiro.Application;
 using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.ContasAPagar;
 using ErpFinanceiro.Domain;
@@ -9,6 +10,11 @@ namespace ErpFinanceiro.Tests.ContasAPagar;
 
 public class GerenciadorContasPagarTests
 {
+    private sealed class RelogioFixo(DateOnly hoje) : IRelogio
+    {
+        public DateOnly Hoje() => hoje;
+    }
+
     private static async Task<(AppDbContext Db, GerenciadorContasPagar Gerenciador, RegistradorAuditoriaFalso Auditoria, Guid FornecedorId, Guid UsuarioId)> PrepararAsync()
     {
         var db = AppDbContextFactory.CriarEmMemoria();
@@ -20,7 +26,7 @@ public class GerenciadorContasPagarTests
         var usuario = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, "Financeiro", "Usuário Financeiro");
 
         var auditoria = new RegistradorAuditoriaFalso();
-        var gerenciador = new GerenciadorContasPagar(db, auditoria, userManager);
+        var gerenciador = new GerenciadorContasPagar(db, auditoria, userManager, new RelogioFixo(new DateOnly(2026, 9, 1)));
         return (db, gerenciador, auditoria, fornecedor.Id, usuario.Id);
     }
 
@@ -72,6 +78,33 @@ public class GerenciadorContasPagarTests
         var resultado = await gerenciador.CriarAsync(input, usuarioId);
 
         Assert.False(resultado.Operacao.Sucesso);
+    }
+
+    [Fact]
+    public async Task CriarAsync_com_vencimento_anterior_a_hoje_retorna_falha()
+    {
+        var (_, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
+        var input = InputPadrao(fornecedorId) with { Vencimento = new DateOnly(2026, 8, 31) };
+
+        var resultado = await gerenciador.CriarAsync(input, usuarioId);
+
+        Assert.False(resultado.Operacao.Sucesso);
+    }
+
+    [Fact]
+    public async Task EditarAsync_permite_vencimento_anterior_a_hoje_em_conta_ja_existente()
+    {
+        // A regra é "não deixar nascer já vencida" — não impede ajustar uma
+        // conta que legitimamente já está vencida (ex.: só corrigir o valor).
+        var (db, gerenciador, _, fornecedorId, usuarioId) = await PrepararAsync();
+        var criada = await gerenciador.CriarAsync(InputPadrao(fornecedorId, 100m), usuarioId);
+
+        var resultado = await gerenciador.EditarAsync(criada.Conta!.Id,
+            InputPadrao(fornecedorId, 100m) with { Vencimento = new DateOnly(2026, 8, 31) }, usuarioId);
+
+        Assert.True(resultado.Sucesso);
+        var doBanco = await db.ContasPagar.FindAsync(criada.Conta.Id);
+        Assert.Equal(new DateOnly(2026, 8, 31), doBanco!.Vencimento);
     }
 
     [Fact]

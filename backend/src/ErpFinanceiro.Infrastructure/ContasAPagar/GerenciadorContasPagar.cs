@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ErpFinanceiro.Infrastructure.ContasAPagar;
 
-public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditoria auditoria, UserManager<Usuario> userManager)
+public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditoria auditoria, UserManager<Usuario> userManager, IRelogio relogio)
     : IGerenciadorContasPagar
 {
     public async Task<ResultadoContaPagar> CriarAsync(ContaPagarInput input, Guid usuarioId)
@@ -20,6 +20,15 @@ public sealed class GerenciadorContasPagar(AppDbContext db, IRegistradorAuditori
         }
 
         var erros = await ValidarAsync(input);
+        // Só no cadastro — não na edição, que pode estar só ajustando um
+        // valor de uma conta que legitimamente já venceu (StatusFinanceiro
+        // Vencida). A regra é "não deixar nascer já vencida", não "nunca
+        // ter vencimento no passado".
+        if (input.Vencimento < relogio.Hoje())
+        {
+            erros.Add("O vencimento não pode ser anterior à data de hoje.");
+        }
+
         if (erros.Count > 0)
         {
             return ResultadoContaPagar.Falha(erros.ToArray());

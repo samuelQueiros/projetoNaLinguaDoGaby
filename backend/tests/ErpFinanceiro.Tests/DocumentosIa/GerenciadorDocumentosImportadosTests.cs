@@ -1,4 +1,5 @@
 using System.Text;
+using ErpFinanceiro.Application;
 using ErpFinanceiro.Application.DocumentosIa;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.ContasAPagar;
@@ -34,6 +35,11 @@ public class GerenciadorDocumentosImportadosTests
             => Task.FromResult(resultado);
     }
 
+    private sealed class RelogioFixo(DateOnly hoje) : IRelogio
+    {
+        public DateOnly Hoje() => hoje;
+    }
+
     private sealed record Cenario(
         AppDbContext Db,
         GerenciadorDocumentosImportados Gerenciador,
@@ -61,7 +67,7 @@ public class GerenciadorDocumentosImportadosTests
         var leitor = new LeitorFalso(resultadoLeitura
             ?? new ResultadoLeituraDocumento(TipoDocumentoDetectado.NaoIdentificado, 0m, Array.Empty<CampoLido>()));
 
-        var contasPagar = new GerenciadorContasPagar(db, auditoria, userManager);
+        var contasPagar = new GerenciadorContasPagar(db, auditoria, userManager, new RelogioFixo(new DateOnly(2000, 1, 1)));
         var anexos = new GerenciadorAnexos(db, storage, auditoria, NullLogger<GerenciadorAnexos>.Instance);
 
         var gerenciador = new GerenciadorDocumentosImportados(
