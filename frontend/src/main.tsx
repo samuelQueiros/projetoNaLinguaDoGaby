@@ -36,7 +36,7 @@ function Layout(){
  const {user}=useAuth(),[open,setOpen]=useState(false);
  return <Guard><div className="shell"><aside className={open?'open':''}><div className="brand"><img src="/img/onrtdpj-icone.png"/><b>Financeiro <strong>ONRTDPJ</strong></b></div><nav>{groups.map(([g,items])=><section key={g}><small>{g}</small>{items.map(([l,h])=><NavLink key={h} to={h} end={h==='/' } onClick={()=>setOpen(false)}>{l}</NavLink>)}</section>)}{user?.ehAdministrador&&<section><small>Administração</small><NavLink to="/auditoria">Auditoria</NavLink><NavLink to="/usuarios">Usuários</NavLink><NavLink to="/configuracoes-ia">Configurações de IA</NavLink></section>}</nav><div className="profile"><span>{user?.nome}<small>{user?.papeis.join(' · ')}</small></span><button className="link" onClick={async()=>{await api('/api/auth/logout',{method:'POST'});location.assign('/login')}}>Sair</button></div></aside><main className="main"><header><button className="menu" onClick={()=>setOpen(!open)}>☰</button><span>Ambiente financeiro</span></header><div className="content"><OutletRoutes/></div></main><Chat/></div></Guard>;
 }
-function OutletRoutes(){return <Routes><Route index element={<Dashboard/>}/><Route path="contas-a-pagar" element={<Contas/>}/><Route path="contas-a-pagar/novo" element={<Navigate to="/contas-a-pagar"/>}/><Route path="contas-a-pagar/:id" element={<Navigate to="/contas-a-pagar"/>}/><Route path="fornecedores" element={<Crud config={configs.fornecedores}/>}/><Route path="fornecedores/novo" element={<Navigate to="/fornecedores"/>}/><Route path="categorias" element={<Crud config={configs.categorias}/>}/><Route path="centros-de-custo" element={<Crud config={configs.centros}/>}/><Route path="contas-bancarias" element={<Crud config={configs.bancos}/>}/><Route path="cartoes" element={<Crud config={configs.cartoes}/>}/><Route path="notas-fiscais" element={<Crud config={configs.notas}/>}/><Route path="boletos" element={<Crud config={configs.boletos}/>}/><Route path="central-de-documentos" element={<Documentos/>}/><Route path="relatorios" element={<Relatorios/>}/><Route path="auditoria" element={<Admin><Auditoria/></Admin>}/><Route path="usuarios" element={<Admin><Usuarios/></Admin>}/><Route path="configuracoes-ia" element={<Admin><Configuracoes/></Admin>}/><Route path="*" element={<NotFound/>}/></Routes>}
+function OutletRoutes(){return <Routes><Route index element={<Dashboard/>}/><Route path="contas-a-pagar" element={<Contas/>}/><Route path="contas-a-pagar/novo" element={<Navigate to="/contas-a-pagar"/>}/><Route path="contas-a-pagar/:id" element={<Navigate to="/contas-a-pagar"/>}/><Route path="fornecedores" element={<Fornecedores/>}/><Route path="fornecedores/novo" element={<Navigate to="/fornecedores"/>}/><Route path="categorias" element={<Crud config={configs.categorias}/>}/><Route path="centros-de-custo" element={<Crud config={configs.centros}/>}/><Route path="contas-bancarias" element={<Crud config={configs.bancos}/>}/><Route path="cartoes" element={<Crud config={configs.cartoes}/>}/><Route path="notas-fiscais" element={<Crud config={configs.notas}/>}/><Route path="boletos" element={<Crud config={configs.boletos}/>}/><Route path="central-de-documentos" element={<Documentos/>}/><Route path="relatorios" element={<Relatorios/>}/><Route path="auditoria" element={<Admin><Auditoria/></Admin>}/><Route path="usuarios" element={<Admin><Usuarios/></Admin>}/><Route path="configuracoes-ia" element={<Admin><Configuracoes/></Admin>}/><Route path="*" element={<NotFound/>}/></Routes>}
 function Admin({children}:{children:React.ReactNode}){return <Guard admin>{children}</Guard>}
 function Title({title,subtitle,action}:{title:string;subtitle?:string;action?:React.ReactNode}){return <div className="title"><div><p className="eyebrow">Financeiro ONRTDPJ</p><h1>{title}</h1>{subtitle&&<p>{subtitle}</p>}</div>{action}</div>}
 function Loading(){return <div className="card empty">Carregando dados…</div>}
@@ -59,6 +59,65 @@ function FieldInput({field,value,onChange}:{field:Field;value:any;onChange:(v:an
 function Crud({config}:{config:Config}){const {user}=useAuth(),{data,load}=useLoad<any[]>(config.endpoint),[editing,setEditing]=useState<any|null>(null),[msg,setMsg]=useState('');
  async function save(e:React.FormEvent){e.preventDefault();const body={...editing};delete body.id;delete body.criadoEm;delete body.atualizadoEm;Object.keys(body).filter(k=>typeof body[k]==='object').forEach(k=>delete body[k]);try{const path=config.endpoint.split('?')[0]+(editing.id?'/'+editing.id:'');const result:any=await api(path,{method:editing.id?'PUT':'POST',body:JSON.stringify(body)});const op:Operation=result.operacao||result;if(op.sucesso===false)throw new Error(op.erros.join(' '));setEditing(null);setMsg('Registro salvo com sucesso.');load()}catch(x){setMsg((x as Error).message)}}
  return <><Title title={config.title} subtitle={config.subtitle} action={<button onClick={()=>setEditing(config===configs.cartoes?{responsavelId:user?.id}:config===configs.fornecedores?{ativo:true}:{})}>Novo cadastro</button>}/>{msg&&<div className="alert">{msg}</div>}<section className="card"><Table rows={data||[]} cols={config.cols} onClick={setEditing}/></section>{editing&&<div className="modal"><form className="dialog" onSubmit={save}><h2>{editing.id?'Editar':'Novo'} registro</h2><div className="form-grid">{config.fields.map(f=><FieldInput key={f.name} field={f} value={editing[f.name]} onChange={v=>setEditing({...editing,[f.name]:v})}/>)}</div><div className="actions"><button type="button" className="secondary" onClick={()=>setEditing(null)}>Cancelar</button><button>Salvar</button></div></form></div>}</>}
+function Contratos({fornecedorId}:{fornecedorId:string}){
+ const {data,load}=useLoad<any[]>('/api/fornecedores/'+fornecedorId+'/contratos');
+ const [novo,setNovo]=useState<any>({nome:'',vigenciaInicio:'',vigenciaFim:''});
+ const [arquivo,setArquivo]=useState<File|null>(null);
+ const [msg,setMsg]=useState('');
+ const arquivoRef=React.useRef<HTMLInputElement>(null);
+ async function adicionar(e:React.FormEvent){e.preventDefault();if(!arquivo){setMsg('Selecione um arquivo.');return}
+  const f=new FormData();f.append('arquivo',arquivo);f.append('nome',novo.nome);f.append('vigenciaInicio',novo.vigenciaInicio);f.append('vigenciaFim',novo.vigenciaFim);
+  try{const r:any=await api('/api/fornecedores/'+fornecedorId+'/contratos',{method:'POST',body:f});const op=r.operacao||r;if(op.sucesso===false)throw new Error(op.erros.join(' '));
+   setNovo({nome:'',vigenciaInicio:'',vigenciaFim:''});setArquivo(null);if(arquivoRef.current)arquivoRef.current.value='';setMsg('Contrato adicionado com sucesso.');load()}
+  catch(x){setMsg((x as Error).message)}}
+ async function remover(id:string){if(!confirm('Remover este contrato?'))return;const r:any=await api('/api/fornecedores/contratos/'+id,{method:'DELETE'});if(r.sucesso===false){setMsg(r.erros.join(' '));return}setMsg('Contrato removido.');load()}
+ return <section className="contratos"><h3>Contratos</h3>{msg&&<p className="alert">{msg}</p>}
+  <div className="table-wrap"><table><thead><tr><th>Nome</th><th>Vigência</th><th>Arquivo</th><th></th></tr></thead><tbody>
+   {(data&&data.length)?data.map(c=><tr key={c.id}><td>{c.nome}</td><td>{date(c.vigenciaInicio)} – {date(c.vigenciaFim)}</td><td><a href={'/contratos-fornecedor/'+c.id+'/arquivo'} target="_blank" rel="noreferrer">{c.nomeArquivo}</a></td><td><button type="button" className="link danger" onClick={()=>remover(c.id)}>Excluir</button></td></tr>):<tr><td colSpan={4} className="empty">Nenhum contrato anexado.</td></tr>}
+  </tbody></table></div>
+  <form className="form-grid" onSubmit={adicionar}>
+   <label>Nome do contrato<input required value={novo.nome} onChange={e=>setNovo({...novo,nome:e.target.value})}/></label>
+   <label>Vigência início<input required type="date" value={novo.vigenciaInicio} onChange={e=>setNovo({...novo,vigenciaInicio:e.target.value})}/></label>
+   <label>Vigência fim<input required type="date" value={novo.vigenciaFim} onChange={e=>setNovo({...novo,vigenciaFim:e.target.value})}/></label>
+   <label>Arquivo<input ref={arquivoRef} required type="file" onChange={e=>setArquivo(e.target.files?.[0]||null)}/></label>
+   <div className="actions full"><button>Adicionar contrato</button></div>
+  </form>
+ </section>}
+const contratoNovoVazio={nome:'',vigenciaInicio:'',vigenciaFim:''};
+function Fornecedores(){
+ const config=configs.fornecedores;
+ const {data,load}=useLoad<any[]>(config.endpoint);
+ const [editing,setEditing]=useState<any|null>(null),[msg,setMsg]=useState('');
+ const [contratoNovo,setContratoNovo]=useState<any>(contratoNovoVazio);
+ const [arquivoNovo,setArquivoNovo]=useState<File|null>(null);
+ async function save(e:React.FormEvent){e.preventDefault();
+  if(!editing.id&&arquivoNovo&&(!contratoNovo.nome||!contratoNovo.vigenciaInicio||!contratoNovo.vigenciaFim)){setMsg('Preencha nome e vigência do contrato, ou remova o arquivo selecionado.');return}
+  const body={...editing};delete body.id;delete body.criadoEm;delete body.atualizadoEm;Object.keys(body).filter(k=>typeof body[k]==='object').forEach(k=>delete body[k]);
+  try{const path='/api/fornecedores'+(editing.id?'/'+editing.id:'');const result:any=await api(path,{method:editing.id?'PUT':'POST',body:JSON.stringify(body)});const op:Operation=result.operacao||result;if(op.sucesso===false)throw new Error(op.erros.join(' '));
+   if(!editing.id&&result.entidade){
+    const criado=result.entidade;
+    let avisoContrato='';
+    if(arquivoNovo){
+     const f=new FormData();f.append('arquivo',arquivoNovo);f.append('nome',contratoNovo.nome);f.append('vigenciaInicio',contratoNovo.vigenciaInicio);f.append('vigenciaFim',contratoNovo.vigenciaFim);
+     try{const rc:any=await api('/api/fornecedores/'+criado.id+'/contratos',{method:'POST',body:f});const opc=rc.operacao||rc;if(opc.sucesso===false)throw new Error(opc.erros.join(' '))}
+     catch(x){avisoContrato=' Porém, o contrato não foi anexado: '+(x as Error).message}
+    }
+    setEditing({...criado});setContratoNovo(contratoNovoVazio);setArquivoNovo(null);
+    setMsg('Fornecedor criado com sucesso.'+avisoContrato)
+   }else{setEditing(null);setMsg('Fornecedor salvo com sucesso.')}
+   load()}catch(x){setMsg((x as Error).message)}}
+ return <><Title title={config.title} subtitle={config.subtitle} action={<button onClick={()=>{setEditing({ativo:true});setContratoNovo(contratoNovoVazio);setArquivoNovo(null)}}>Novo cadastro</button>}/>{msg&&<div className="alert">{msg}</div>}<section className="card"><Table rows={data||[]} cols={config.cols} onClick={x=>setEditing({...x})}/></section>
+  {editing&&<div className="modal"><div className="dialog"><form onSubmit={save}><h2>{editing.id?'Editar':'Novo'} fornecedor</h2><div className="form-grid">{config.fields.map(f=><FieldInput key={f.name} field={f} value={editing[f.name]} onChange={v=>setEditing({...editing,[f.name]:v})}/>)}</div>
+   {!editing.id&&<section className="contratos"><h3>Contrato (opcional)</h3><div className="form-grid">
+     <label>Nome do contrato<input value={contratoNovo.nome} onChange={e=>setContratoNovo({...contratoNovo,nome:e.target.value})}/></label>
+     <label>Vigência início<input type="date" value={contratoNovo.vigenciaInicio} onChange={e=>setContratoNovo({...contratoNovo,vigenciaInicio:e.target.value})}/></label>
+     <label>Vigência fim<input type="date" value={contratoNovo.vigenciaFim} onChange={e=>setContratoNovo({...contratoNovo,vigenciaFim:e.target.value})}/></label>
+     <label>Arquivo<input type="file" onChange={e=>setArquivoNovo(e.target.files?.[0]||null)}/></label>
+   </div></section>}
+   <div className="actions"><button type="button" className="secondary" onClick={()=>setEditing(null)}>Cancelar</button><button>Salvar</button></div></form>
+   {editing.id&&<Contratos fornecedorId={editing.id}/>}
+  </div></div>}
+ </>}
 const camposConta:[string,string,string?][]=[['descricao','Descrição','text'],['vencimento','Vencimento','date'],['valorOriginal','Valor original','number'],['desconto','Desconto','number'],['juros','Juros','number'],['multa','Multa','number']];
 function contaComFornecedorInativoPendente(r:any){return r.fornecedor?.ativo===false&&(r.statusAprovacao==='Cadastrada'||r.statusAprovacao==='AguardandoAprovacao')}
 function Contas(){

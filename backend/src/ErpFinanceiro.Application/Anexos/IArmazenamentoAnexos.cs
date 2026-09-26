@@ -17,6 +17,19 @@ public interface IArmazenamentoAnexos
 {
     Task<ArquivoArmazenado> SalvarAsync(Stream conteudo, string nomeOriginal, string tipoConteudo, CancellationToken ct = default);
 
+    /// <summary>
+    /// Como <see cref="SalvarAsync"/>, mas grava numa pasta relativa
+    /// explícita (não a pasta yyyy/MM automática) — usado quando a
+    /// estrutura de pastas importa para navegação humana (ex.: contratos
+    /// de fornecedor, organizados por fornecedor/ano). O nome físico do
+    /// arquivo (<paramref name="nomeArquivo"/>) continua sendo gerado pelo
+    /// chamador de forma não previsível — nunca o nome original do
+    /// usuário — só a pasta muda; qualquer segmento de
+    /// <paramref name="pastaRelativa"/> originado de texto livre do
+    /// usuário deve ser sanitizado pelo chamador antes de chegar aqui.
+    /// </summary>
+    Task<ArquivoArmazenado> SalvarEmAsync(string pastaRelativa, string nomeArquivo, Stream conteudo, string tipoConteudo, CancellationToken ct = default);
+
     Task<Stream> AbrirAsync(string caminhoRelativo, CancellationToken ct = default);
 
     Task ExcluirAsync(string caminhoRelativo, CancellationToken ct = default);

@@ -6,19 +6,21 @@ using ErpFinanceiro.Infrastructure.Fornecedores;
 using ErpFinanceiro.Tests.Fixtures;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ErpFinanceiro.Tests.Fornecedores;
 
 public class GerenciadorFornecedoresTests
 {
-    private static async Task<(AppDbContext Db, GerenciadorFornecedores Gerenciador, RegistradorAuditoriaFalso Auditoria, UserManager<Usuario> UserManager, Guid UsuarioId)> PrepararAsync()
+    private static async Task<(AppDbContext Db, GerenciadorFornecedores Gerenciador, RegistradorAuditoriaFalso Auditoria, UserManager<Usuario> UserManager, ArmazenamentoAnexosFalso Storage, Guid UsuarioId)> PrepararAsync()
     {
         var db = AppDbContextFactory.CriarEmMemoria();
         var userManager = IdentityTestHelpers.CriarUserManager(db);
         var usuario = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, "Financeiro", "Usuário Financeiro");
         var auditoria = new RegistradorAuditoriaFalso();
-        var gerenciador = new GerenciadorFornecedores(db, auditoria, userManager);
-        return (db, gerenciador, auditoria, userManager, usuario.Id);
+        var storage = new ArmazenamentoAnexosFalso();
+        var gerenciador = new GerenciadorFornecedores(db, auditoria, userManager, storage, NullLogger<GerenciadorFornecedores>.Instance);
+        return (db, gerenciador, auditoria, userManager, storage, usuario.Id);
     }
 
     private static CriarFornecedorInput InputPadrao(string cnpj = "12.345.678/0001-99") =>
@@ -27,7 +29,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task CriarAsync_normaliza_cnpj_removendo_pontuacao()
     {
-        var (_, gerenciador, _, _, _) = await PrepararAsync();
+        var (_, gerenciador, _, _, _, _) = await PrepararAsync();
 
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao("12.345.678/0001-99"))).Entidade!;
 
@@ -47,7 +49,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task ExcluirAsync_nao_remove_fisicamente_apenas_marca_ExcluidoEm()
     {
-        var (db, gerenciador, _, _, _) = await PrepararAsync();
+        var (db, gerenciador, _, _, _, _) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
 
         var resultado = await gerenciador.ExcluirAsync(fornecedor.Id);
@@ -61,7 +63,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task ListarAsync_oculta_excluidos_por_padrao()
     {
-        var (_, gerenciador, _, _, _) = await PrepararAsync();
+        var (_, gerenciador, _, _, _, _) = await PrepararAsync();
         var ativo = (await gerenciador.CriarAsync(InputPadrao("11.111.111/0001-11"))).Entidade!;
         var excluido = (await gerenciador.CriarAsync(InputPadrao("22.222.222/0001-22"))).Entidade!;
         await gerenciador.ExcluirAsync(excluido.Id);
@@ -77,7 +79,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task EditarAsync_com_id_inexistente_retorna_falha()
     {
-        var (_, gerenciador, _, _, _) = await PrepararAsync();
+        var (_, gerenciador, _, _, _, _) = await PrepararAsync();
 
         var resultado = await gerenciador.EditarAsync(Guid.NewGuid(), InputPadrao());
 
@@ -87,7 +89,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task CriarAsync_marca_fornecedor_como_ativo_por_padrao()
     {
-        var (_, gerenciador, _, _, _) = await PrepararAsync();
+        var (_, gerenciador, _, _, _, _) = await PrepararAsync();
 
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
 
@@ -97,7 +99,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task EditarAsync_permite_inativar_e_reativar_fornecedor()
     {
-        var (db, gerenciador, _, _, _) = await PrepararAsync();
+        var (db, gerenciador, _, _, _, _) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
 
         await gerenciador.EditarAsync(fornecedor.Id, InputPadrao() with { Ativo = false });
@@ -110,7 +112,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task AdicionarDadosBancariosAsync_com_dois_principais_mantem_so_o_ultimo()
     {
-        var (db, gerenciador, _, _, usuarioId) = await PrepararAsync();
+        var (db, gerenciador, _, _, _, usuarioId) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
 
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
@@ -131,7 +133,7 @@ public class GerenciadorFornecedoresTests
         // Mesmo com InMemory (que não valida constraints reais do Postgres),
         // o ValueConverter roda e a leitura de volta via EF deve decifrar
         // corretamente para o valor original.
-        var (db, gerenciador, _, _, usuarioId) = await PrepararAsync();
+        var (db, gerenciador, _, _, _, usuarioId) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
 
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
@@ -145,7 +147,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task RemoverDadosBancariosAsync_remove_o_registro()
     {
-        var (db, gerenciador, _, _, usuarioId) = await PrepararAsync();
+        var (db, gerenciador, _, _, _, usuarioId) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
             new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, null, Principal: true), usuarioId);
@@ -160,7 +162,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task AdicionarDadosBancariosAsync_por_usuario_Consulta_e_bloqueado()
     {
-        var (db, gerenciador, _, userManager, _) = await PrepararAsync();
+        var (db, gerenciador, _, userManager, _, _) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
         var consulta = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, "Consulta", "Usuária Consulta");
 
@@ -174,7 +176,7 @@ public class GerenciadorFornecedoresTests
     [Fact]
     public async Task EditarDadosBancariosAsync_grava_log_de_auditoria_sem_expor_conta_ou_chavePix()
     {
-        var (db, gerenciador, auditoria, _, usuarioId) = await PrepararAsync();
+        var (db, gerenciador, auditoria, _, _, usuarioId) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
             new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "chave-pix-original", Principal: true), usuarioId);

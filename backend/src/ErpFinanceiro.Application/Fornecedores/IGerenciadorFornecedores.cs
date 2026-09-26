@@ -28,4 +28,17 @@ public interface IGerenciadorFornecedores
     Task<ResultadoOperacao> EditarDadosBancariosAsync(Guid dadosBancariosId, DadosBancariosInput input, Guid usuarioId);
 
     Task<ResultadoOperacao> RemoverDadosBancariosAsync(Guid dadosBancariosId, Guid usuarioId);
+
+    /// <summary>
+    /// Anexa um contrato (arquivo + nome + vigência) a um fornecedor. Falha
+    /// se a vigência final for anterior à inicial, se o fornecedor não
+    /// existir, ou se o arquivo for recusado pelo storage (extensão/tamanho).
+    /// </summary>
+    Task<ResultadoCriacao<ContratoFornecedor>> AdicionarContratoAsync(Guid fornecedorId, NovoContratoInput input, Guid usuarioId);
+
+    Task<IReadOnlyList<ContratoFornecedor>> ListarContratosAsync(Guid fornecedorId);
+
+    Task<ContratoParaDownload?> BaixarContratoAsync(Guid contratoId);
+
+    Task<ResultadoOperacao> RemoverContratoAsync(Guid contratoId, Guid usuarioId);
 }

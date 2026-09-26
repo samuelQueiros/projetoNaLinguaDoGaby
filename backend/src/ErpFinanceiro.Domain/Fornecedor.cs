@@ -39,4 +39,6 @@ public class Fornecedor : IEntidadeAuditavel
     public DateTime? AtualizadoEm { get; set; }
 
     public ICollection<DadosBancariosFornecedor> DadosBancarios { get; set; } = new List<DadosBancariosFornecedor>();
+
+    public ICollection<ContratoFornecedor> Contratos { get; set; } = new List<ContratoFornecedor>();
 }

@@ -57,6 +57,10 @@ public class ExecutorFerramentasChatIaTests
         public Task<ResultadoOperacao> AdicionarDadosBancariosAsync(Guid fornecedorId, DadosBancariosInput input, Guid usuarioId) => throw new NotSupportedException();
         public Task<ResultadoOperacao> EditarDadosBancariosAsync(Guid dadosBancariosId, DadosBancariosInput input, Guid usuarioId) => throw new NotSupportedException();
         public Task<ResultadoOperacao> RemoverDadosBancariosAsync(Guid dadosBancariosId, Guid usuarioId) => throw new NotSupportedException();
+        public Task<ResultadoCriacao<ContratoFornecedor>> AdicionarContratoAsync(Guid fornecedorId, NovoContratoInput input, Guid usuarioId) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ContratoFornecedor>> ListarContratosAsync(Guid fornecedorId) => throw new NotSupportedException();
+        public Task<ContratoParaDownload?> BaixarContratoAsync(Guid contratoId) => throw new NotSupportedException();
+        public Task<ResultadoOperacao> RemoverContratoAsync(Guid contratoId, Guid usuarioId) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<Fornecedor>> ListarAsync(bool incluirExcluidos = false) =>
             Task.FromResult<IReadOnlyList<Fornecedor>>(Retorno);

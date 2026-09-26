@@ -1,14 +1,20 @@
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
 using ErpFinanceiro.Application;
+using ErpFinanceiro.Application.Anexos;
 using ErpFinanceiro.Application.Auditoria;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace ErpFinanceiro.Infrastructure.Fornecedores;
 
-public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditoria auditoria, UserManager<Usuario> userManager)
+public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditoria auditoria, UserManager<Usuario> userManager,
+    IArmazenamentoAnexos storage, ILogger<GerenciadorFornecedores> logger)
     : IGerenciadorFornecedores
 {
     public async Task<ResultadoCriacao<Fornecedor>> CriarAsync(CriarFornecedorInput input)
@@ -210,6 +216,112 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
         return ResultadoOperacao.Ok();
     }
 
+    public async Task<ResultadoCriacao<ContratoFornecedor>> AdicionarContratoAsync(Guid fornecedorId, NovoContratoInput input, Guid usuarioId)
+    {
+        if (input.VigenciaFim < input.VigenciaInicio)
+        {
+            return ResultadoCriacao<ContratoFornecedor>.Falha("A vigência final não pode ser anterior à inicial.");
+        }
+
+        var fornecedor = await db.Fornecedores.FirstOrDefaultAsync(f => f.Id == fornecedorId && f.ExcluidoEm == null);
+        if (fornecedor is null)
+        {
+            return ResultadoCriacao<ContratoFornecedor>.Falha("Fornecedor não encontrado.");
+        }
+
+        // Pasta legível por fornecedor/ano de vigência (pedido de negócio,
+        // facilita achar o contrato certo navegando o disco); o nome físico
+        // do arquivo continua gerado pelo servidor (Guid), nunca o nome
+        // original do usuário — mesma blindagem de ArmazenamentoAnexosDisco.
+        var pasta = $"onrtdpj/fornecedores/{input.VigenciaInicio.Year}/{PastaDoFornecedor(fornecedor)}";
+        var nomeFisico = $"{Guid.NewGuid():N}{Path.GetExtension(input.NomeOriginal)}";
+
+        ArquivoArmazenado armazenado;
+        try
+        {
+            armazenado = await storage.SalvarEmAsync(pasta, nomeFisico, input.Conteudo, input.TipoConteudo);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ResultadoCriacao<ContratoFornecedor>.Falha(ex.Message);
+        }
+
+        var contrato = new ContratoFornecedor
+        {
+            Id = Guid.NewGuid(),
+            FornecedorId = fornecedorId,
+            Nome = input.Nome,
+            VigenciaInicio = input.VigenciaInicio,
+            VigenciaFim = input.VigenciaFim,
+            NomeArquivo = Path.GetFileName(input.NomeOriginal),
+            CaminhoArmazenamento = armazenado.CaminhoRelativo,
+            TamanhoBytes = armazenado.TamanhoBytes,
+            TipoConteudo = armazenado.TipoConteudo,
+            EnviadoPorId = usuarioId,
+        };
+
+        db.ContratosFornecedor.Add(contrato);
+        await db.SaveChangesAsync();
+
+        await auditoria.RegistrarAsync(usuarioId, "AnexarContratoFornecedor", nameof(Fornecedor), fornecedorId,
+            null, new { contrato.Nome, contrato.VigenciaInicio, contrato.VigenciaFim, contrato.NomeArquivo });
+
+        return ResultadoCriacao<ContratoFornecedor>.Ok(contrato);
+    }
+
+    public async Task<IReadOnlyList<ContratoFornecedor>> ListarContratosAsync(Guid fornecedorId) =>
+        await db.ContratosFornecedor.AsNoTracking()
+            .Where(c => c.FornecedorId == fornecedorId)
+            .OrderByDescending(c => c.VigenciaFim)
+            .ToListAsync();
+
+    public async Task<ContratoParaDownload?> BaixarContratoAsync(Guid contratoId)
+    {
+        var contrato = await db.ContratosFornecedor.AsNoTracking().FirstOrDefaultAsync(c => c.Id == contratoId);
+        if (contrato is null)
+        {
+            return null;
+        }
+
+        var conteudo = await storage.AbrirAsync(contrato.CaminhoArmazenamento);
+        return new ContratoParaDownload(conteudo, contrato.NomeArquivo, contrato.TipoConteudo);
+    }
+
+    public async Task<ResultadoOperacao> RemoverContratoAsync(Guid contratoId, Guid usuarioId)
+    {
+        var contrato = await db.ContratosFornecedor.FirstOrDefaultAsync(c => c.Id == contratoId);
+        if (contrato is null)
+        {
+            return ResultadoOperacao.Falha("Contrato não encontrado.");
+        }
+
+        // Mesma ordem de DadosBancarios/Anexo: apaga o arquivo físico ANTES
+        // de remover o registro do banco — se o delete falhar, a operação
+        // inteira falha e nada muda, evitando arquivo órfão em disco.
+        try
+        {
+            await storage.ExcluirAsync(contrato.CaminhoArmazenamento);
+        }
+        catch (IOException ex)
+        {
+            logger.LogError(ex, "Falha ao excluir o arquivo físico do contrato {ContratoId} ({Caminho}).", contrato.Id, contrato.CaminhoArmazenamento);
+            return ResultadoOperacao.Falha("Não consegui excluir o arquivo — tente de novo em instantes.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.LogError(ex, "Falha ao excluir o arquivo físico do contrato {ContratoId} ({Caminho}).", contrato.Id, contrato.CaminhoArmazenamento);
+            return ResultadoOperacao.Falha("Não consegui excluir o arquivo — tente de novo em instantes.");
+        }
+
+        db.ContratosFornecedor.Remove(contrato);
+        await db.SaveChangesAsync();
+
+        await auditoria.RegistrarAsync(usuarioId, "ExcluirContratoFornecedor", nameof(Fornecedor), contrato.FornecedorId,
+            new { contrato.Nome, contrato.NomeArquivo }, null);
+
+        return ResultadoOperacao.Ok();
+    }
+
     /// <summary>
     /// Só campos não sensíveis — nunca Conta/ChavePix, que são cifrados em
     /// repouso (AES-256-GCM) especificamente para não circular em texto
@@ -284,4 +396,31 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
     /// fornecedores "diferentes" no índice único.
     /// </summary>
     private static string SomenteDigitos(string valor) => new(valor.Where(char.IsDigit).ToArray());
+
+    /// <summary>
+    /// Segmento de pasta legível para o fornecedor — nome fantasia (ou
+    /// razão social) reduzido a [a-z0-9-], com o começo do Id como sufixo
+    /// pra garantir que dois fornecedores com nome parecido/igual nunca
+    /// caiam na mesma pasta.
+    /// </summary>
+    private static string PastaDoFornecedor(Fornecedor fornecedor)
+    {
+        var slug = Slugificar(fornecedor.NomeFantasia ?? fornecedor.RazaoSocial);
+        var sufixo = fornecedor.Id.ToString("N")[..8];
+        return string.IsNullOrEmpty(slug) ? sufixo : $"{slug}-{sufixo}";
+    }
+
+    /// <summary>
+    /// Converte texto livre num segmento de pasta seguro: minúsculo, sem
+    /// acentos, só [a-z0-9-]. Path traversal já é bloqueado pelo storage
+    /// de qualquer forma (ResolverDentroDaRaiz) — isso aqui é só pra pasta
+    /// ficar legível e não esbarrar em caracteres inválidos no disco.
+    /// </summary>
+    private static string Slugificar(string texto)
+    {
+        var normalizado = texto.Normalize(NormalizationForm.FormD);
+        var semAcento = new string(normalizado.Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray());
+        var slug = Regex.Replace(semAcento.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        return slug.Length > 80 ? slug[..80].Trim('-') : slug;
+    }
 }

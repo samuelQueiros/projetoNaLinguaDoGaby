@@ -263,15 +263,25 @@ app.UseAuthorization();
 
 app.MapReactApi();
 
-// Download de anexo — precisa ser um endpoint HTTP (não dá para servir um
-// arquivo direto de um componente Blazor Server). Exige autenticação;
-// o storage já bloqueia path traversal ao resolver o caminho.
+// Download de anexo — endpoint HTTP dedicado (o React consome via <a href>,
+// não dá para devolver um binário pela API JSON). Exige autenticação; o
+// storage já bloqueia path traversal ao resolver o caminho.
 app.MapGet("/anexos/{id:guid}", async (Guid id, IGerenciadorAnexos gerenciador) =>
 {
     var anexo = await gerenciador.BaixarAsync(id);
     return anexo is null
         ? Results.NotFound()
         : Results.File(anexo.Conteudo, anexo.TipoConteudo, anexo.NomeArquivo);
+}).RequireAuthorization();
+
+// Download do arquivo de um contrato de fornecedor — mesmo motivo do
+// endpoint de anexo acima (binário não sai da API JSON).
+app.MapGet("/contratos-fornecedor/{id:guid}/arquivo", async (Guid id, IGerenciadorFornecedores gerenciador) =>
+{
+    var contrato = await gerenciador.BaixarContratoAsync(id);
+    return contrato is null
+        ? Results.NotFound()
+        : Results.File(contrato.Conteudo, contrato.TipoConteudo, contrato.NomeArquivo);
 }).RequireAuthorization();
 
 // Visualização do arquivo original de um documento importado (Central de
@@ -289,9 +299,10 @@ app.MapGet("/documentos-importados/{id:guid}/arquivo",
 
         // Antes da revisão, o documento importado (comprovante/contrato/nota
         // ainda não virou anexo "oficial") só é visível pra quem enviou ou
-        // pra Administrador — mesma restrição aplicada em CentralDocumentos.razor
-        // (achado da auditoria de segurança: endpoint expunha qualquer
-        // documento de qualquer usuário pra qualquer usuário autenticado).
+        // pra Administrador — mesma restrição aplicada na tela Central de
+        // Documentos do React (achado da auditoria de segurança: endpoint
+        // expunha qualquer documento de qualquer usuário pra qualquer
+        // usuário autenticado).
         var usuario = await userManager.GetUserAsync(principal);
         var ehAdministrador = usuario is not null && await userManager.IsInRoleAsync(usuario, nameof(PerfilUsuario.Administrador));
         if (usuario is null || (!ehAdministrador && documento.EnviadoPorId != usuario.Id))
@@ -304,9 +315,9 @@ app.MapGet("/documentos-importados/{id:guid}/arquivo",
     }).RequireAuthorization();
 
 // Exportação do relatório de contas a pagar (seção 10 do escopo) — mesmo
-// motivo dos anexos: download de arquivo binário não sai de um componente
-// Blazor Server, precisa ser um endpoint HTTP de verdade. O filtro chega
-// como querystring porque é um link <a href>, não um POST de formulário.
+// motivo dos anexos: download de arquivo binário precisa ser um endpoint
+// HTTP dedicado, não a API JSON. O filtro chega como querystring porque é
+// um link <a href>, não um POST de formulário.
 async Task<ContaPagar[]> ContasFiltradasAsync(IGerenciadorContasPagar gerenciador, Guid? fornecedorId,
     StatusFinanceiro? statusFinanceiro, StatusAprovacao? statusAprovacao, DateOnly? vencimentoInicial, DateOnly? vencimentoFinal)
 {

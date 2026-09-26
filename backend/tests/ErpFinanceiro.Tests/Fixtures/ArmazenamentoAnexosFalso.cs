@@ -32,6 +32,15 @@ public sealed class ArmazenamentoAnexosFalso : IArmazenamentoAnexos
         return new ArquivoArmazenado(caminho, buffer.Length, tipoConteudo);
     }
 
+    public async Task<ArquivoArmazenado> SalvarEmAsync(string pastaRelativa, string nomeArquivo, Stream conteudo, string tipoConteudo, CancellationToken ct = default)
+    {
+        using var buffer = new MemoryStream();
+        await conteudo.CopyToAsync(buffer, ct);
+        var caminho = $"{pastaRelativa}/{nomeArquivo}";
+        Arquivos[caminho] = buffer.ToArray();
+        return new ArquivoArmazenado(caminho, buffer.Length, tipoConteudo);
+    }
+
     public Task<Stream> AbrirAsync(string caminhoRelativo, CancellationToken ct = default) =>
         Arquivos.TryGetValue(caminhoRelativo, out var bytes)
             ? Task.FromResult<Stream>(new MemoryStream(bytes))

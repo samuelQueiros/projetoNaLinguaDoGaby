@@ -34,6 +34,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<DadosBancariosFornecedor> DadosBancariosFornecedores => Set<DadosBancariosFornecedor>();
 
+    public DbSet<ContratoFornecedor> ContratosFornecedor => Set<ContratoFornecedor>();
+
     public DbSet<ContaBancariaEmpresa> ContasBancariasEmpresa => Set<ContaBancariaEmpresa>();
 
     public DbSet<Cartao> Cartoes => Set<Cartao>();
@@ -204,6 +206,30 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
             // Passo 8/9).
 
             b.HasIndex(d => d.FornecedorId);
+        });
+
+        builder.Entity<ContratoFornecedor>(b =>
+        {
+            b.ToTable("ContratosFornecedor");
+            b.Property(c => c.Nome).IsRequired().HasMaxLength(200);
+            b.Property(c => c.NomeArquivo).IsRequired().HasMaxLength(300);
+            b.Property(c => c.CaminhoArmazenamento).IsRequired().HasMaxLength(400);
+            b.Property(c => c.TipoConteudo).IsRequired().HasMaxLength(150);
+            b.Property(c => c.CriadoEm).HasDefaultValueSql("now()");
+
+            b.HasOne(c => c.Fornecedor)
+                .WithMany(f => f.Contratos)
+                .HasForeignKey(c => c.FornecedorId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // Cascade é rede de segurança para exclusão física fora do fluxo
+            // normal — Fornecedor nunca é excluído fisicamente pela aplicação
+            // (só ExcluidoEm), mesmo raciocínio de DadosBancariosFornecedor.
+
+            b.HasOne(c => c.EnviadoPor).WithMany().HasForeignKey(c => c.EnviadoPorId).OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(c => c.FornecedorId);
+            b.ToTable(t => t.HasCheckConstraint("CK_ContratosFornecedor_Vigencia", "\"VigenciaFim\" >= \"VigenciaInicio\""));
+            b.ToTable(t => t.HasCheckConstraint("CK_ContratosFornecedor_TamanhoBytes", "\"TamanhoBytes\" >= 0"));
         });
 
         builder.Entity<ContaBancariaEmpresa>(b =>
