@@ -62,8 +62,16 @@ services:
       Ia__Documentos__Provedor: ${DOCUMENTOS_IA_PROVEDOR:-}
       Ia__Documentos__Modelo: ${DOCUMENTOS_IA_MODELO:-}
       Ia__Documentos__ApiKey: ${DOCUMENTOS_IA_API_KEY:-}
+      Anexos__RaizFisica: /app/storage
     ports:
       - "8080:8080"
+    volumes:
+      # Bind mount (não volume nomeado) de propósito: em dev é útil abrir
+      # backend/storage/ direto no Explorer pra conferir o que foi
+      # anexado/gravado, sem precisar entrar no container. Produção
+      # (deploy/portainer-*.yml) usa volume nomeado — lá não há motivo
+      # pra inspecionar pelo host.
+      - ./backend/storage:/app/storage
 
 volumes:
   erp_postgres_data:
