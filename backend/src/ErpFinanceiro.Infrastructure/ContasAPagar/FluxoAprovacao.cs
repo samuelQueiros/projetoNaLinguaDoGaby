@@ -12,7 +12,10 @@ public sealed class FluxoAprovacao(AppDbContext db, UserManager<Usuario> userMan
     : IFluxoAprovacao
 {
     public Task<ResultadoOperacao> AprovarAsync(Guid contaPagarId, Guid usuarioId) =>
-        RegistrarAsync(contaPagarId, usuarioId, AcaoAprovacao.Aprovada, motivo: null);
+        RegistrarAsync(contaPagarId, usuarioId, AcaoAprovacao.Aprovada, StatusAprovacao.Aprovada, motivo: null);
+
+    public Task<ResultadoOperacao> RetornarParaCadastradaAsync(Guid contaPagarId, Guid usuarioId) =>
+        RegistrarAsync(contaPagarId, usuarioId, AcaoAprovacao.RetornadaCadastro, StatusAprovacao.Cadastrada, motivo: null);
 
     public Task<ResultadoOperacao> RejeitarAsync(Guid contaPagarId, Guid usuarioId, string motivo)
     {
@@ -21,10 +24,11 @@ public sealed class FluxoAprovacao(AppDbContext db, UserManager<Usuario> userMan
             return Task.FromResult(ResultadoOperacao.Falha("Informe o motivo da rejeição."));
         }
 
-        return RegistrarAsync(contaPagarId, usuarioId, AcaoAprovacao.Rejeitada, motivo);
+        return RegistrarAsync(contaPagarId, usuarioId, AcaoAprovacao.Rejeitada, StatusAprovacao.Rejeitada, motivo);
     }
 
-    private async Task<ResultadoOperacao> RegistrarAsync(Guid contaPagarId, Guid usuarioId, AcaoAprovacao acao, string? motivo)
+    private async Task<ResultadoOperacao> RegistrarAsync(Guid contaPagarId, Guid usuarioId, AcaoAprovacao acao,
+        StatusAprovacao statusDestino, string? motivo)
     {
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
         if (usuario is null)
@@ -44,16 +48,26 @@ public sealed class FluxoAprovacao(AppDbContext db, UserManager<Usuario> userMan
             return ResultadoOperacao.Falha("Conta a pagar não encontrada.");
         }
 
-        if (conta.StatusAprovacao is not (StatusAprovacao.Cadastrada or StatusAprovacao.AguardandoAprovacao))
+        var transicaoPermitida = statusDestino == StatusAprovacao.Cadastrada
+            ? conta.StatusAprovacao == StatusAprovacao.Aprovada
+            : conta.StatusAprovacao is StatusAprovacao.Cadastrada or StatusAprovacao.AguardandoAprovacao;
+
+        if (!transicaoPermitida)
         {
-            return ResultadoOperacao.Falha($"Conta já está no status de aprovação '{conta.StatusAprovacao}' — não pode ser aprovada/rejeitada novamente.");
+            return ResultadoOperacao.Falha(statusDestino == StatusAprovacao.Cadastrada
+                ? "Só contas aprovadas podem retornar para cadastrada."
+                : $"Conta já está no status de aprovação '{conta.StatusAprovacao}' — não pode ser aprovada/rejeitada novamente.");
         }
 
         var statusAnterior = conta.StatusAprovacao;
-        conta.StatusAprovacao = acao == AcaoAprovacao.Aprovada ? StatusAprovacao.Aprovada : StatusAprovacao.Rejeitada;
+        conta.StatusAprovacao = statusDestino;
         if (acao == AcaoAprovacao.Rejeitada)
         {
             conta.MotivoCancelamentoRejeicao = motivo;
+        }
+        else if (acao == AcaoAprovacao.RetornadaCadastro)
+        {
+            conta.MotivoCancelamentoRejeicao = null;
         }
 
         db.AprovacoesConta.Add(new AprovacaoConta

@@ -14,6 +14,9 @@ public interface IFluxoAprovacao
 {
     Task<ResultadoOperacao> AprovarAsync(Guid contaPagarId, Guid usuarioId);
 
+    /// <summary>Retorna uma conta aprovada para o status de cadastro, preservando o histórico.</summary>
+    Task<ResultadoOperacao> RetornarParaCadastradaAsync(Guid contaPagarId, Guid usuarioId);
+
     /// <summary>Motivo é obrigatório ao rejeitar.</summary>
     Task<ResultadoOperacao> RejeitarAsync(Guid contaPagarId, Guid usuarioId, string motivo);
 }

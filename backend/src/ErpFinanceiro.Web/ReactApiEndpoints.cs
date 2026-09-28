@@ -103,6 +103,7 @@ public static class ReactApiEndpoints
         a.MapPut("/contas-a-pagar/{id:guid}", async (Guid id, ContaPagarInput r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorContasPagar g) => await g.EditarAsync(id, r, await Uid(p, um)));
         a.MapDelete("/contas-a-pagar/{id:guid}", async (Guid id, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorContasPagar g) => await g.ExcluirAsync(id, await Uid(p, um)));
         a.MapPost("/contas-a-pagar/{id:guid}/aprovar", async (Guid id, ClaimsPrincipal p, UserManager<Usuario> um, IFluxoAprovacao g) => await g.AprovarAsync(id, await Uid(p, um)));
+        a.MapPost("/contas-a-pagar/{id:guid}/retornar-para-cadastrada", async (Guid id, ClaimsPrincipal p, UserManager<Usuario> um, IFluxoAprovacao g) => await g.RetornarParaCadastradaAsync(id, await Uid(p, um)));
         a.MapPost("/contas-a-pagar/{id:guid}/rejeitar", async (Guid id, MotivoRequest r, ClaimsPrincipal p, UserManager<Usuario> um, IFluxoAprovacao g) => await g.RejeitarAsync(id, await Uid(p, um), r.Motivo));
         a.MapGet("/contas-a-pagar/{id:guid}/pagamentos", (Guid id, IGerenciadorPagamentos g) => g.ListarPorContaAsync(id));
         a.MapPost("/contas-a-pagar/{id:guid}/pagamentos", async (Guid id, RegistrarPagamentoInput r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorPagamentos g) => await g.RegistrarAsync(id, r, await Uid(p, um)));

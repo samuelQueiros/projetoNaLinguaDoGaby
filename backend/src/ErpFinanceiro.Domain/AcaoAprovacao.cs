@@ -4,4 +4,5 @@ public enum AcaoAprovacao
 {
     Aprovada,
     Rejeitada,
+    RetornadaCadastro,
 }

@@ -154,6 +154,35 @@ public class FluxoAprovacaoTests
     }
 
     [Fact]
+    public async Task RetornarParaCadastradaAsync_conta_aprovada_restaura_status_e_audita()
+    {
+        var (db, fluxo, auditoria, userManager, conta) = await PrepararAsync();
+        var gestor = await CriarUsuarioComPapelAsync(db, userManager, "Gestor");
+        await fluxo.AprovarAsync(conta.Id, gestor.Id);
+        auditoria.Chamadas.Clear();
+
+        var resultado = await fluxo.RetornarParaCadastradaAsync(conta.Id, gestor.Id);
+
+        Assert.True(resultado.Sucesso);
+        var doBanco = await db.ContasPagar.FindAsync(conta.Id);
+        Assert.Equal(StatusAprovacao.Cadastrada, doBanco!.StatusAprovacao);
+        Assert.Equal(AcaoAprovacao.RetornadaCadastro, (await db.AprovacoesConta.OrderBy(a => a.Data).LastAsync()).Acao);
+        Assert.Equal("RetornadaCadastro", Assert.Single(auditoria.Chamadas).Acao);
+    }
+
+    [Fact]
+    public async Task RetornarParaCadastradaAsync_conta_nao_aprovada_retorna_falha()
+    {
+        var (db, fluxo, _, userManager, conta) = await PrepararAsync();
+        var gestor = await CriarUsuarioComPapelAsync(db, userManager, "Gestor");
+
+        var resultado = await fluxo.RetornarParaCadastradaAsync(conta.Id, gestor.Id);
+
+        Assert.False(resultado.Sucesso);
+        Assert.Equal(StatusAprovacao.Cadastrada, (await db.ContasPagar.FindAsync(conta.Id))!.StatusAprovacao);
+    }
+
+    [Fact]
     public async Task RejeitarAsync_conta_ja_rejeitada_nao_pode_ser_aprovada()
     {
         var (db, fluxo, auditoria, userManager, conta) = await PrepararAsync();
