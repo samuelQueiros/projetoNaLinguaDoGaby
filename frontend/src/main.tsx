@@ -35,7 +35,7 @@ function Login(){
 // Grupo "Documentos" (Central de documentos) ocultado do menu por pedido de
 // negócio — a rota e a página continuam existindo (ver OutletRoutes), só a
 // entrada de navegação some por enquanto.
-const groups=[['Painel',[['Início','/']]],['Financeiro',[['Contas a pagar','/contas-a-pagar'],['Boletos','/boletos'],['Notas fiscais','/notas-fiscais'],['Relatórios','/relatorios']]],['Cadastros',[['Fornecedores','/fornecedores'],['Contas bancárias','/contas-bancarias'],['Cartões','/cartoes'],['Categorias','/categorias'],['Centros de custo','/centros-de-custo']]]] as const;
+const groups=[['Painel',[['Início','/']]],['Financeiro',[['Contas a pagar','/contas-a-pagar'],['Boletos','/boletos'],['Notas fiscais','/notas-fiscais'],['Contratos','/contratos'],['Comprovantes','/comprovantes'],['Relatórios','/relatorios']]],['Cadastros',[['Fornecedores','/fornecedores'],['Contas bancárias','/contas-bancarias'],['Cartões','/cartoes'],['Categorias','/categorias'],['Centros de custo','/centros-de-custo']]]] as const;
 function Layout(){
  const {user}=useAuth(),[open,setOpen]=useState(false);
  const rota=useLocation();
@@ -46,7 +46,7 @@ function Layout(){
    :<section key={g}><small>{g}</small>{items.map(([l,h])=><NavLink key={h} to={h} end={(h as string)==='/'} onClick={()=>setOpen(false)}>{l}</NavLink>)}</section>
  )}{user?.ehAdministrador&&<section><small>Administração</small><NavLink to="/auditoria">Auditoria</NavLink><NavLink to="/usuarios">Usuários</NavLink><NavLink to="/configuracoes-ia">Configurações de IA</NavLink></section>}</nav><div className="profile"><span>{user?.nome}<small>{user?.papeis.join(' · ')}</small></span><button className="link" onClick={async()=>{await api('/api/auth/logout',{method:'POST'});location.assign('/login')}}>Sair</button></div></aside><main className="main"><header><button className="menu" onClick={()=>setOpen(!open)}>☰</button><span>Ambiente financeiro</span></header><div className="content"><OutletRoutes/></div></main><Chat/></div></Guard>;
 }
-function OutletRoutes(){return <Routes><Route index element={<Dashboard/>}/><Route path="contas-a-pagar" element={<Contas/>}/><Route path="contas-a-pagar/novo" element={<Navigate to="/contas-a-pagar"/>}/><Route path="contas-a-pagar/:id" element={<Navigate to="/contas-a-pagar"/>}/><Route path="fornecedores" element={<Fornecedores/>}/><Route path="fornecedores/novo" element={<Navigate to="/fornecedores"/>}/><Route path="categorias" element={<Crud config={configs.categorias}/>}/><Route path="centros-de-custo" element={<Crud config={configs.centros}/>}/><Route path="contas-bancarias" element={<Crud config={configs.bancos}/>}/><Route path="cartoes" element={<Crud config={configs.cartoes}/>}/><Route path="notas-fiscais" element={<Crud config={configs.notas}/>}/><Route path="boletos" element={<Crud config={configs.boletos}/>}/><Route path="central-de-documentos" element={<Documentos/>}/><Route path="relatorios" element={<Relatorios/>}/><Route path="auditoria" element={<Admin><Auditoria/></Admin>}/><Route path="usuarios" element={<Admin><Usuarios/></Admin>}/><Route path="configuracoes-ia" element={<Admin><Configuracoes/></Admin>}/><Route path="*" element={<NotFound/>}/></Routes>}
+function OutletRoutes(){return <Routes><Route index element={<Dashboard/>}/><Route path="contas-a-pagar" element={<Contas/>}/><Route path="contas-a-pagar/novo" element={<Navigate to="/contas-a-pagar"/>}/><Route path="contas-a-pagar/:id" element={<Navigate to="/contas-a-pagar"/>}/><Route path="fornecedores" element={<Fornecedores/>}/><Route path="fornecedores/novo" element={<Navigate to="/fornecedores"/>}/><Route path="categorias" element={<Crud config={configs.categorias}/>}/><Route path="centros-de-custo" element={<Crud config={configs.centros}/>}/><Route path="contas-bancarias" element={<Crud config={configs.bancos}/>}/><Route path="cartoes" element={<Crud config={configs.cartoes}/>}/><Route path="notas-fiscais" element={<DocumentosPorTipo tipo="NotaFiscal" titulo="Notas fiscais"/>}/><Route path="boletos" element={<DocumentosPorTipo tipo="Boleto" titulo="Boletos"/>}/><Route path="contratos" element={<DocumentosPorTipo tipo="Contrato" titulo="Contratos"/>}/><Route path="comprovantes" element={<DocumentosPorTipo tipo="Comprovante" titulo="Comprovantes"/>}/><Route path="central-de-documentos" element={<Documentos/>}/><Route path="relatorios" element={<Relatorios/>}/><Route path="auditoria" element={<Admin><Auditoria/></Admin>}/><Route path="usuarios" element={<Admin><Usuarios/></Admin>}/><Route path="configuracoes-ia" element={<Admin><Configuracoes/></Admin>}/><Route path="*" element={<NotFound/>}/></Routes>}
 function Admin({children}:{children:React.ReactNode}){return <Guard admin>{children}</Guard>}
 function Title({title,subtitle,action}:{title:string;subtitle?:string;action?:React.ReactNode}){return <div className="title"><div><p className="eyebrow">Financeiro ONRTDPJ</p><h1>{title}</h1>{subtitle&&<p>{subtitle}</p>}</div>{action}</div>}
 function Loading(){return <div className="card empty">Carregando dados…</div>}
@@ -201,6 +201,32 @@ function RegistrarPagamento({conta,onRegistrado}:{conta:any;onRegistrado:()=>voi
  </section>}
 const tamanhoPaginaContas=20;
 const tiposDocumentoConta:[string,string][]=[['Boleto','Boleto'],['Comprovante','Comprovante'],['NotaFiscal','NF (Nota Fiscal)'],['Recibo','Recibo'],['Contrato','Contrato']];
+const abasDocumentos=[['Boletos','/boletos'],['Notas fiscais','/notas-fiscais'],['Contratos','/contratos'],['Comprovantes','/comprovantes']] as const;
+function DocumentosPorTipo({tipo,titulo}:{tipo:string;titulo:string}){
+ const nav=useNavigate(),[filtro,setFiltro]=useState<any>({}),[pagina,setPagina]=useState(1);
+ const {data:fornecedores}=useLoad<any[]>('/api/fornecedores?incluirExcluidos=false');
+ function atualizarFiltro(novo:any){setFiltro(novo);setPagina(1)}
+ const qs=new URLSearchParams({tipoDocumento:tipo,pagina:String(pagina),tamanhoPagina:'20'});
+ Object.entries(filtro).filter(([,v])=>v).forEach(([k,v])=>qs.set(k,String(v)));
+ const {data,error}=useLoad<any>('/api/documentos-contas?'+qs.toString());
+ const itens=data?.itens||[],totalPaginas=data?.totalPaginas||1;
+ return <><Title title={titulo} subtitle="Documentos anexados às contas a pagar."/>
+  <div className="document-tabs">{abasDocumentos.map(([label,href])=><NavLink key={href} to={href}>{label}</NavLink>)}</div>
+  <section className="card form-grid document-filters">
+   <label>Buscar<input value={filtro.busca||''} placeholder="Arquivo, conta, fornecedor ou número da NF" onChange={e=>atualizarFiltro({...filtro,busca:e.target.value})}/></label>
+   <label>Fornecedor<select value={filtro.fornecedorId||''} onChange={e=>atualizarFiltro({...filtro,fornecedorId:e.target.value})}><option value="">Todos</option>{fornecedores?.map(x=><option key={x.id} value={x.id}>{x.razaoSocial}</option>)}</select></label>
+   <label>Anexado de<input type="date" value={filtro.dataInicial||''} onChange={e=>atualizarFiltro({...filtro,dataInicial:e.target.value})}/></label>
+   <label>Anexado até<input type="date" value={filtro.dataFinal||''} onChange={e=>atualizarFiltro({...filtro,dataFinal:e.target.value})}/></label>
+   {Object.values(filtro).some(Boolean)&&<div className="actions full"><button type="button" className="secondary" onClick={()=>atualizarFiltro({})}>Limpar filtros</button></div>}
+  </section>
+  {error&&<div className="alert error">{error}</div>}
+  <section className="card"><div className="table-wrap"><table><thead><tr><th>Documento</th>{tipo==='NotaFiscal'&&<th>Número da NF</th>}<th>Conta a pagar</th><th>Fornecedor</th><th>Vencimento da conta</th><th>Anexado em</th></tr></thead><tbody>
+   {itens.length?itens.map((d:any)=><tr key={d.id} className="clickable" onClick={()=>nav('/contas-a-pagar?contaId='+d.contaPagarId)}><td><a href={'/anexos/'+d.id} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}>{d.nomeArquivo}</a></td>{tipo==='NotaFiscal'&&<td>{d.numeroNotaFiscal||'—'}</td>}<td>{d.contaDescricao}</td><td>{d.fornecedor}</td><td>{date(d.contaVencimento)}</td><td>{date(d.criadoEm)}</td></tr>):<tr><td colSpan={tipo==='NotaFiscal'?6:5} className="empty">Nenhum documento encontrado.</td></tr>}
+  </tbody></table></div>
+  <div className="pagination"><button type="button" className="secondary" disabled={pagina<=1} onClick={()=>setPagina(p=>p-1)}>Anterior</button><span>Página {data?.pagina||1} de {totalPaginas} · {data?.total??0} documento(s)</span><button type="button" className="secondary" disabled={pagina>=totalPaginas} onClick={()=>setPagina(p=>p+1)}>Próxima</button></div>
+  <p className="document-hint">Clique em uma linha para visualizar a conta a pagar relacionada.</p></section>
+ </>
+}
 function DocumentosConta({conta,onMessage}:{conta:any;onMessage:(mensagem:string)=>void}){
  const [anexos,setAnexos]=useState<any[]>([]),[notas,setNotas]=useState<any[]>([]),[tipo,setTipo]=useState('Boleto'),[arquivo,setArquivo]=useState<File|null>(null),[nf,setNf]=useState<any>({numero:'',serie:'',emissao:hoje(),valor:conta.valorOriginal||0,vencimento:conta.vencimento||'',observacoes:''}),[busy,setBusy]=useState(false),[erro,setErro]=useState(''),[fileKey,setFileKey]=useState(0);
  async function carregar(){
@@ -258,11 +284,14 @@ function DocumentosConta({conta,onMessage}:{conta:any;onMessage:(mensagem:string
  </section>
 }
 function Contas(){
+ const rota=useLocation();
  const [filtro,setFiltro]=useState<any>({}),[pagina,setPagina]=useState(1);
  function atualizarFiltro(novo:any){setFiltro(novo);setPagina(1)}
  const qs=Object.entries({...filtro,pagina,tamanhoPagina:tamanhoPaginaContas}).filter(([,v])=>v).map(([k,v])=>k+'='+encodeURIComponent(v as string)).join('&');
  const {data,load}=useLoad<any>('/api/contas-a-pagar/paginado'+(qs?'?'+qs:'')),{data:fornecedores}=useLoad<any[]>('/api/fornecedores?incluirExcluidos=false'),{data:formasPagamento}=useLoad<any[]>('/api/formas-pagamento?apenasAtivos=true');
  const [editing,setEditing]=useState<any|null>(null),[msg,setMsg]=useState('');
+ const contaSelecionadaId=new URLSearchParams(rota.search).get('contaId');
+ useEffect(()=>{if(contaSelecionadaId)api<any>('/api/contas-a-pagar/'+contaSelecionadaId).then(conta=>setEditing(conta)).catch(x=>setMsg((x as Error).message))},[contaSelecionadaId]);
  const contas=data?.itens||[],totalPaginas=data?.totalPaginas||1;
  const filtroAtivo=filtro.fornecedorId||filtro.statusFinanceiro||filtro.statusAprovacao||filtro.vencimentoInicial||filtro.vencimentoFinal;
  async function salvar(e:React.FormEvent){e.preventDefault();const body={...editing};delete body.id;delete body.criadoEm;delete body.atualizadoEm;delete body._aviso;Object.keys(body).filter(k=>typeof body[k]==='object').forEach(k=>delete body[k]);try{const r:any=await api('/api/contas-a-pagar'+(editing.id?'/'+editing.id:''),{method:editing.id?'PUT':'POST',body:JSON.stringify(body)});const op=r.operacao||r;if(op.sucesso===false)throw new Error(op.erros.join(' '));setEditing(null);setMsg('Conta salva com sucesso.');load()}catch(x){setMsg((x as Error).message)}}

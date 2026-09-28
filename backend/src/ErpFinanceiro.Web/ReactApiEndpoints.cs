@@ -152,6 +152,8 @@ public static class ReactApiEndpoints
     static void Anexos(RouteGroupBuilder a)
     {
         a.MapGet("/anexos", (EntidadeAnexo entidadeTipo, Guid entidadeId, IGerenciadorAnexos g) => g.ListarAsync(entidadeTipo, entidadeId));
+        a.MapGet("/documentos-contas", (TipoDocumentoAnexo tipoDocumento, string? busca, Guid? fornecedorId, DateOnly? dataInicial, DateOnly? dataFinal, int pagina, int tamanhoPagina, IGerenciadorAnexos g) =>
+            g.ListarDocumentosContasAsync(new(tipoDocumento, busca, fornecedorId, dataInicial, dataFinal, Math.Max(1, pagina), tamanhoPagina <= 0 ? 20 : tamanhoPagina)));
         a.MapPost("/anexos", async (IFormFile arquivo, [FromForm] EntidadeAnexo entidadeTipo, [FromForm] Guid entidadeId, [FromForm] TipoDocumentoAnexo tipoDocumento, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorAnexos g) => { await using var s = arquivo.OpenReadStream(); return Results.Ok(await g.AnexarAsync(new(entidadeTipo, entidadeId, tipoDocumento, s, arquivo.FileName, arquivo.ContentType), await Uid(p, um))); }).DisableAntiforgery();
         a.MapDelete("/anexos/{id:guid}", async (Guid id, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorAnexos g) => await g.ExcluirAsync(id, await Uid(p, um)));
     }
@@ -175,4 +177,3 @@ public static class ReactApiEndpoints
     static async Task<Guid> Uid(ClaimsPrincipal p, UserManager<Usuario> um) =>
         (await um.GetUserAsync(p))?.Id ?? throw new UnauthorizedAccessException();
 }
-

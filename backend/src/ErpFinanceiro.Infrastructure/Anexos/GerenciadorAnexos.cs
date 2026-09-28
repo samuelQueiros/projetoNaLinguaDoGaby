@@ -44,6 +44,104 @@ public sealed class GerenciadorAnexos(AppDbContext db, IArmazenamentoAnexos stor
             .OrderByDescending(a => a.CriadoEm)
             .ToListAsync();
 
+    public async Task<ResultadoPaginado<DocumentoContaResumo>> ListarDocumentosContasAsync(FiltroDocumentosContas filtro)
+    {
+        var documentosDiretos =
+            from anexo in db.Anexos.AsNoTracking()
+            join conta in db.ContasPagar.AsNoTracking() on anexo.EntidadeId equals conta.Id
+            join fornecedor in db.Fornecedores.AsNoTracking() on conta.FornecedorId equals fornecedor.Id
+            where anexo.EntidadeTipo == EntidadeAnexo.ContaPagar
+                  && anexo.TipoDocumento == filtro.TipoDocumento
+                  && conta.ExcluidoEm == null
+            select new
+            {
+                anexo.Id,
+                anexo.TipoDocumento,
+                anexo.NomeArquivo,
+                anexo.TamanhoBytes,
+                anexo.CriadoEm,
+                ContaPagarId = conta.Id,
+                ContaDescricao = conta.Descricao,
+                ContaVencimento = conta.Vencimento,
+                FornecedorId = fornecedor.Id,
+                Fornecedor = fornecedor.RazaoSocial,
+                NumeroNotaFiscal = (string?)null
+            };
+
+        var query = documentosDiretos;
+
+        if (filtro.TipoDocumento == TipoDocumentoAnexo.NotaFiscal)
+        {
+            var documentosDeNotas =
+                from anexo in db.Anexos.AsNoTracking()
+                join nota in db.NotasFiscais.AsNoTracking() on anexo.EntidadeId equals nota.Id
+                join conta in db.ContasPagar.AsNoTracking() on nota.ContaPagarId equals (Guid?)conta.Id
+                join fornecedor in db.Fornecedores.AsNoTracking() on conta.FornecedorId equals fornecedor.Id
+                where anexo.EntidadeTipo == EntidadeAnexo.NotaFiscal
+                      && anexo.TipoDocumento == TipoDocumentoAnexo.NotaFiscal
+                      && conta.ExcluidoEm == null
+                select new
+                {
+                    anexo.Id,
+                    anexo.TipoDocumento,
+                    anexo.NomeArquivo,
+                    anexo.TamanhoBytes,
+                    anexo.CriadoEm,
+                    ContaPagarId = conta.Id,
+                    ContaDescricao = conta.Descricao,
+                    ContaVencimento = conta.Vencimento,
+                    FornecedorId = fornecedor.Id,
+                    Fornecedor = fornecedor.RazaoSocial,
+                    NumeroNotaFiscal = (string?)nota.Numero
+                };
+
+            query = query.Concat(documentosDeNotas);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Busca))
+        {
+            var busca = filtro.Busca.Trim().ToLower();
+            query = query.Where(d =>
+                d.NomeArquivo.ToLower().Contains(busca) ||
+                d.ContaDescricao.ToLower().Contains(busca) ||
+                d.Fornecedor.ToLower().Contains(busca) ||
+                (d.NumeroNotaFiscal != null && d.NumeroNotaFiscal.ToLower().Contains(busca)));
+        }
+
+        if (filtro.FornecedorId is Guid fornecedorId)
+        {
+            query = query.Where(d => d.FornecedorId == fornecedorId);
+        }
+
+        if (filtro.DataInicial is DateOnly dataInicial)
+        {
+            var inicio = dataInicial.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(d => d.CriadoEm >= inicio);
+        }
+
+        if (filtro.DataFinal is DateOnly dataFinal)
+        {
+            var fimExclusivo = dataFinal.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(d => d.CriadoEm < fimExclusivo);
+        }
+
+        var pagina = Math.Max(1, filtro.Pagina);
+        var tamanho = filtro.TamanhoPagina <= 0 ? 20 : Math.Min(filtro.TamanhoPagina, 100);
+        var total = await query.CountAsync();
+        var linhas = await query.OrderByDescending(d => d.CriadoEm)
+            .ThenBy(d => d.NomeArquivo)
+            .Skip((pagina - 1) * tamanho)
+            .Take(tamanho)
+            .ToListAsync();
+
+        var itens = linhas.Select(d => new DocumentoContaResumo(
+            d.Id, d.TipoDocumento, d.NomeArquivo, d.TamanhoBytes, d.CriadoEm,
+            d.ContaPagarId, d.ContaDescricao, d.ContaVencimento,
+            d.FornecedorId, d.Fornecedor, d.NumeroNotaFiscal)).ToList();
+
+        return new ResultadoPaginado<DocumentoContaResumo>(itens, total, pagina, tamanho);
+    }
+
     public async Task<AnexoParaDownload?> BaixarAsync(Guid anexoId)
     {
         var anexo = await db.Anexos.AsNoTracking().FirstOrDefaultAsync(a => a.Id == anexoId);

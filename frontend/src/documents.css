@@ -2,6 +2,40 @@
   width: min(860px, 100%);
 }
 
+.document-tabs {
+  display: flex;
+  gap: .35rem;
+  border-bottom: 1px solid #dfe6e9;
+  margin: -0.4rem 0 1rem;
+  overflow-x: auto;
+}
+
+.document-tabs a {
+  color: #657680;
+  text-decoration: none;
+  padding: .7rem 1rem;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  font-size: .86rem;
+  font-weight: 700;
+}
+
+.document-tabs a.active {
+  color: #087c75;
+  border-bottom-color: #159681;
+}
+
+.document-filters {
+  margin-bottom: 1rem;
+}
+
+.document-hint {
+  color: #71808a;
+  font-size: .78rem;
+  text-align: center;
+  margin: .8rem 0 0;
+}
+
 .documents-panel .section-description {
   color: #657680;
   font-size: .82rem;

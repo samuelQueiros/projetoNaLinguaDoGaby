@@ -60,6 +60,53 @@ public class GerenciadorAnexosTests
     }
 
     [Fact]
+    public async Task ListarDocumentosContasAsync_filtra_e_pagina_anexos_da_conta()
+    {
+        var (gerenciador, _, _, db, usuarioId) = await CriarAsync();
+        var fornecedor = new Fornecedor { Id = Guid.NewGuid(), RazaoSocial = "Fornecedor Alfa", CnpjCpf = "12345678000199" };
+        var conta = new ContaPagar { Id = Guid.NewGuid(), FornecedorId = fornecedor.Id, Descricao = "Energia setembro", Vencimento = new DateOnly(2026, 9, 30), ValorOriginal = 100m };
+        db.Fornecedores.Add(fornecedor);
+        db.ContasPagar.Add(conta);
+        await db.SaveChangesAsync();
+        await gerenciador.AnexarAsync(new(EntidadeAnexo.ContaPagar, conta.Id, TipoDocumentoAnexo.Boleto,
+            new MemoryStream(Encoding.UTF8.GetBytes("boleto")), "boleto-energia.pdf", "application/pdf"), usuarioId);
+        await gerenciador.AnexarAsync(new(EntidadeAnexo.ContaPagar, conta.Id, TipoDocumentoAnexo.Boleto,
+            new MemoryStream(Encoding.UTF8.GetBytes("segunda-via")), "segunda-via-energia.pdf", "application/pdf"), usuarioId);
+        await gerenciador.AnexarAsync(new(EntidadeAnexo.ContaPagar, conta.Id, TipoDocumentoAnexo.Comprovante,
+            new MemoryStream(Encoding.UTF8.GetBytes("comprovante")), "pix.pdf", "application/pdf"), usuarioId);
+
+        var resultado = await gerenciador.ListarDocumentosContasAsync(new(
+            TipoDocumentoAnexo.Boleto, Busca: "energia", FornecedorId: fornecedor.Id, Pagina: 1, TamanhoPagina: 1));
+
+        var documento = Assert.Single(resultado.Itens);
+        Assert.Equal(2, resultado.Total);
+        Assert.Equal(2, resultado.TotalPaginas);
+        Assert.Equal(conta.Id, documento.ContaPagarId);
+        Assert.Equal("Fornecedor Alfa", documento.Fornecedor);
+    }
+
+    [Fact]
+    public async Task ListarDocumentosContasAsync_inclui_anexo_da_nota_vinculada_a_conta()
+    {
+        var (gerenciador, _, _, db, usuarioId) = await CriarAsync();
+        var fornecedor = new Fornecedor { Id = Guid.NewGuid(), RazaoSocial = "Fornecedor NF", CnpjCpf = "12345678000199" };
+        var conta = new ContaPagar { Id = Guid.NewGuid(), FornecedorId = fornecedor.Id, Descricao = "Serviço mensal", Vencimento = new DateOnly(2026, 9, 30), ValorOriginal = 500m };
+        var nota = new NotaFiscal { Id = Guid.NewGuid(), FornecedorId = fornecedor.Id, ContaPagarId = conta.Id, Numero = "NF-900", Emissao = new DateOnly(2026, 9, 1), Valor = 500m };
+        db.Fornecedores.Add(fornecedor);
+        db.ContasPagar.Add(conta);
+        db.NotasFiscais.Add(nota);
+        await db.SaveChangesAsync();
+        await gerenciador.AnexarAsync(new(EntidadeAnexo.NotaFiscal, nota.Id, TipoDocumentoAnexo.NotaFiscal,
+            new MemoryStream(Encoding.UTF8.GetBytes("nf")), "nf-900.pdf", "application/pdf"), usuarioId);
+
+        var resultado = await gerenciador.ListarDocumentosContasAsync(new(TipoDocumentoAnexo.NotaFiscal, Busca: "900"));
+
+        var documento = Assert.Single(resultado.Itens);
+        Assert.Equal("NF-900", documento.NumeroNotaFiscal);
+        Assert.Equal(conta.Id, documento.ContaPagarId);
+    }
+
+    [Fact]
     public async Task BaixarAsync_recupera_conteudo_original()
     {
         var (gerenciador, _, _, _, usuarioId) = await CriarAsync();
