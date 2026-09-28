@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, date, hoje, money, nested, Operation, semLetras, User } from './api';
 import './styles.css';
+import './documents.css';
 
 type AuthValue={user:User|null; loading:boolean; refresh:()=>Promise<void>};
 const Auth=createContext<AuthValue>({user:null,loading:true,refresh:async()=>{}});
@@ -199,6 +200,63 @@ function RegistrarPagamento({conta,onRegistrado}:{conta:any;onRegistrado:()=>voi
   </form>
  </section>}
 const tamanhoPaginaContas=20;
+const tiposDocumentoConta:[string,string][]=[['Boleto','Boleto'],['Comprovante','Comprovante'],['NotaFiscal','NF (Nota Fiscal)'],['Recibo','Recibo'],['Contrato','Contrato']];
+function DocumentosConta({conta,onMessage}:{conta:any;onMessage:(mensagem:string)=>void}){
+ const [anexos,setAnexos]=useState<any[]>([]),[notas,setNotas]=useState<any[]>([]),[tipo,setTipo]=useState('Boleto'),[arquivo,setArquivo]=useState<File|null>(null),[nf,setNf]=useState<any>({numero:'',serie:'',emissao:hoje(),valor:conta.valorOriginal||0,vencimento:conta.vencimento||'',observacoes:''}),[busy,setBusy]=useState(false),[erro,setErro]=useState(''),[fileKey,setFileKey]=useState(0);
+ async function carregar(){
+  try{
+   const [diretos,nfs]=await Promise.all([api<any[]>('/api/anexos?entidadeTipo=ContaPagar&entidadeId='+conta.id),api<any[]>('/api/notas-fiscais?contaPagarId='+conta.id)]);
+   const notasComAnexos=await Promise.all(nfs.map(async nota=>({...nota,anexos:await api<any[]>('/api/anexos?entidadeTipo=NotaFiscal&entidadeId='+nota.id)})));
+   setAnexos(diretos);setNotas(notasComAnexos);
+  }catch(x){setErro((x as Error).message)}
+ }
+ useEffect(()=>{carregar()},[conta.id]);
+ function selecionarTipo(novoTipo:string){setTipo(novoTipo);setErro('');if(novoTipo==='NotaFiscal')setNf((atual:any)=>({...atual,valor:atual.valor||conta.valorOriginal||0,vencimento:atual.vencimento||conta.vencimento||''}))}
+ async function enviar(e:React.FormEvent){
+  e.preventDefault();setErro('');
+  if(!arquivo){setErro('Selecione o arquivo que deseja anexar.');return}
+  setBusy(true);let notaCriadaId:string|undefined;
+  try{
+   let entidadeTipo='ContaPagar',entidadeId=conta.id;
+   if(tipo==='NotaFiscal'){
+    const resultado:any=await api('/api/notas-fiscais',{method:'POST',body:JSON.stringify({...nf,fornecedorId:conta.fornecedorId,contaPagarId:conta.id})});
+    const operacao:Operation=resultado.operacao||resultado;
+    if(operacao.sucesso===false)throw new Error(operacao.erros.join(' '));
+    notaCriadaId=resultado.entidade?.id;
+    if(!notaCriadaId)throw new Error('A nota fiscal foi cadastrada, mas não foi possível identificar o registro criado.');
+    entidadeTipo='NotaFiscal';entidadeId=notaCriadaId;
+   }
+   const dados=new FormData();
+   dados.append('arquivo',arquivo);dados.append('entidadeTipo',entidadeTipo);dados.append('entidadeId',entidadeId);dados.append('tipoDocumento',tipo);
+   await api('/api/anexos',{method:'POST',body:dados});
+   setArquivo(null);setFileKey(x=>x+1);setNf({numero:'',serie:'',emissao:hoje(),valor:conta.valorOriginal||0,vencimento:conta.vencimento||'',observacoes:''});
+   onMessage(tipo==='NotaFiscal'?'Nota fiscal cadastrada e anexada com sucesso.':'Documento anexado com sucesso.');
+   await carregar();
+  }catch(x){
+   if(notaCriadaId)await api('/api/notas-fiscais/'+notaCriadaId,{method:'DELETE'}).catch(()=>undefined);
+   setErro((x as Error).message);
+  }finally{setBusy(false)}
+ }
+ async function excluir(id:string){
+  if(!confirm('Excluir este arquivo anexado?'))return;
+  try{const r:any=await api('/api/anexos/'+id,{method:'DELETE'});if(r?.sucesso===false)throw new Error(r.erros.join(' '));onMessage('Documento excluído com sucesso.');await carregar()}catch(x){setErro((x as Error).message)}
+ }
+ const linhas=[...anexos.map(a=>({...a,rotulo:a.tipoDocumento,detalhe:''})),...notas.flatMap(n=>n.anexos.map((a:any)=>({...a,rotulo:'NF',detalhe:`NF ${n.numero}${n.serie?' · Série '+n.serie:''} · ${money(n.valor)}`})))];
+ return <section className="contratos documents-panel"><h3>Documentos</h3><p className="section-description">Anexe os documentos relacionados a esta conta.</p>
+  {linhas.length?<div className="document-list">{linhas.map(a=><div className="document-row" key={a.id}><div><span className="document-tag">{a.rotulo}</span><a href={'/anexos/'+a.id} target="_blank" rel="noreferrer">{a.nomeArquivo}</a>{a.detalhe&&<small>{a.detalhe}</small>}</div><button type="button" className="link danger" onClick={()=>excluir(a.id)}>Excluir</button></div>)}</div>:<p className="empty compact">Nenhum documento anexado.</p>}
+  <form className="document-form" onSubmit={enviar}><div className="form-grid">
+   <label>Tipo de documento<select value={tipo} onChange={e=>selecionarTipo(e.target.value)}>{tiposDocumentoConta.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+   <label>Arquivo<input key={fileKey} required type="file" onChange={e=>setArquivo(e.target.files?.[0]||null)}/></label>
+   {tipo==='NotaFiscal'&&<><div className="full nf-notice">Ao anexar uma NF, preencha também os dados fiscais abaixo.</div>
+    <label>Número da NF<input required value={nf.numero} onChange={e=>setNf({...nf,numero:e.target.value})}/></label>
+    <label>Série<input value={nf.serie} onChange={e=>setNf({...nf,serie:e.target.value})}/></label>
+    <label>Data de emissão<input required type="date" value={nf.emissao} onChange={e=>setNf({...nf,emissao:e.target.value})}/></label>
+    <label>Valor da NF<input required min="0" step="0.01" type="number" value={nf.valor} onChange={e=>setNf({...nf,valor:Number(e.target.value)})}/></label>
+    <label>Vencimento<input type="date" value={nf.vencimento} onChange={e=>setNf({...nf,vencimento:e.target.value||null})}/></label>
+    <label>Observações<input value={nf.observacoes} onChange={e=>setNf({...nf,observacoes:e.target.value})}/></label></>}
+  </div>{erro&&<div className="alert error">{erro}</div>}<div className="actions"><button disabled={busy}>{busy?'Enviando…':tipo==='NotaFiscal'?'Cadastrar NF e anexar':'Anexar documento'}</button></div></form>
+ </section>
+}
 function Contas(){
  const [filtro,setFiltro]=useState<any>({}),[pagina,setPagina]=useState(1);
  function atualizarFiltro(novo:any){setFiltro(novo);setPagina(1)}
@@ -224,13 +282,14 @@ function Contas(){
   <section className="card"><Table rows={contas.map((r:any)=>({...r,_aviso:contaComFornecedorInativoPendente(r)}))} onClick={x=>setEditing({...x})} rowClassName={r=>contaComFornecedorInativoPendente(r)&&'row-warning'} cols={[['','_aviso','warn'],['Descrição','descricao'],['Fornecedor','fornecedor.razaoSocial'],['Vencimento','vencimento','date'],['Valor final','valorFinal','money'],['Aprovação','statusAprovacao'],['Financeiro','statusFinanceiro']]}/>
    <div className="pagination"><button type="button" className="secondary" disabled={pagina<=1} onClick={()=>setPagina(p=>p-1)}>Anterior</button><span>Página {data?.pagina||1} de {totalPaginas} · {data?.total??0} registro(s)</span><button type="button" className="secondary" disabled={pagina>=totalPaginas} onClick={()=>setPagina(p=>p+1)}>Próxima</button></div>
   </section>
-  {editing&&<div className="modal"><div className="dialog"><form onSubmit={salvar}><h2>{editing.id?'Detalhe da conta':'Nova conta'}</h2>{msg&&<div className="alert">{msg}</div>}{editing.id&&<p><b>Aprovação:</b> {editing.statusAprovacao} · <b>Financeiro:</b> {editing.statusFinanceiro}</p>}<div className="form-grid">
+  {editing&&<div className="modal"><div className="dialog account-dialog"><form onSubmit={salvar}><h2>{editing.id?'Detalhe da conta':'Nova conta'}</h2>{msg&&<div className="alert">{msg}</div>}{editing.id&&<p><b>Aprovação:</b> {editing.statusAprovacao} · <b>Financeiro:</b> {editing.statusFinanceiro}</p>}<div className="form-grid">
     <label>Fornecedor<select required value={editing.fornecedorId||''} onChange={e=>setEditing({...editing,fornecedorId:e.target.value})}><option value="">Selecione</option>{fornecedores?.map(x=><option key={x.id} value={x.id}>{x.razaoSocial}</option>)}</select></label>
     <label>Forma de pagamento<select value={editing.formaPagamentoId||''} onChange={e=>setEditing({...editing,formaPagamentoId:e.target.value||null})}><option value="">Não informada</option>{formasPagamento?.map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
     {camposConta.map(([n,l,t])=><label key={n}>{l}<input required={['descricao','vencimento','valorOriginal'].includes(n)} type={t} step={t==='number'?'0.01':undefined} min={n==='vencimento'&&!editing.id?hoje():undefined} value={editing[n]??''} onChange={e=>setEditing({...editing,[n]:t==='number'?Number(e.target.value):e.target.value})}/></label>)}
     <p className="full valor-final-preview">Valor final: {money(valorFinalPreview)}</p>
    </div>{avisoFornecedorInativo&&<p className="alert warning">⚠️ Fornecedor inativo — aprovar ou rejeitar esta conta continua permitido normalmente.</p>}<div className="actions">{pendenteDeDecisao&&<><button type="button" className="success" onClick={()=>action('aprovar')}>Aprovar</button><button type="button" className="danger" onClick={()=>action('rejeitar')}>Rejeitar</button></>}<button type="button" className="secondary" onClick={()=>setEditing(null)}>Cancelar</button><button>Salvar</button></div></form>
    {editing.id&&editing.statusAprovacao==='Aprovada'&&editing.statusFinanceiro!=='Paga'&&<RegistrarPagamento conta={editing} onRegistrado={()=>{setEditing(null);setMsg('Pagamento registrado com sucesso.');load()}}/>}
+   {editing.id&&<DocumentosConta conta={editing} onMessage={setMsg}/>}
   </div></div>}
  </>}
 function Documentos(){const {data,load}=useLoad<any>('/api/documentos?pagina=1&tamanhoPagina=20'),[msg,setMsg]=useState('');async function upload(e:React.ChangeEvent<HTMLInputElement>){if(!e.target.files)return;const f=new FormData();[...e.target.files].forEach(x=>f.append('arquivos',x));try{await api('/api/documentos',{method:'POST',body:f});setMsg('Arquivos enviados para processamento.');load()}catch(x){setMsg((x as Error).message)}}return <><Title title="Central de documentos" subtitle="Envie arquivos para leitura e classificação por IA." action={<label className="button">Enviar arquivos<input hidden multiple type="file" onChange={upload}/></label>}/>{msg&&<div className="alert">{msg}</div>}<section className="card"><Table rows={data?.itens||[]} cols={[['Arquivo','nomeArquivo'],['Tipo','tipoDetectado'],['Status','status'],['Confiança','confiancaGeral'],['Enviado em','criadoEm','date']]}/></section></>}

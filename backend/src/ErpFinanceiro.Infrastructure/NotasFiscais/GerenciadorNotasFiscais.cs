@@ -170,10 +170,21 @@ public sealed class GerenciadorNotasFiscais(AppDbContext db, IRegistradorAuditor
             erros.Add("Fornecedor não encontrado ou excluído.");
         }
 
-        if (input.ContaPagarId is Guid contaId &&
-            !await db.ContasPagar.AnyAsync(c => c.Id == contaId && c.ExcluidoEm == null))
+        if (input.ContaPagarId is Guid contaId)
         {
-            erros.Add("Conta a pagar vinculada não encontrada.");
+            var fornecedorDaConta = await db.ContasPagar
+                .Where(c => c.Id == contaId && c.ExcluidoEm == null)
+                .Select(c => (Guid?)c.FornecedorId)
+                .FirstOrDefaultAsync();
+
+            if (fornecedorDaConta is null)
+            {
+                erros.Add("Conta a pagar vinculada não encontrada.");
+            }
+            else if (fornecedorDaConta != input.FornecedorId)
+            {
+                erros.Add("A nota fiscal deve pertencer ao mesmo fornecedor da conta a pagar.");
+            }
         }
 
         return erros;

@@ -53,6 +53,30 @@ public class GerenciadorNotasFiscaisTests
     }
 
     [Fact]
+    public async Task CriarAsync_vinculada_a_conta_de_outro_fornecedor_falha()
+    {
+        var (gerenciador, _, db, fornecedorId, usuarioId) = await CriarAsync();
+        var outroFornecedor = new Fornecedor { Id = Guid.NewGuid(), RazaoSocial = "Outro", CnpjCpf = "99999999000188" };
+        var conta = new ContaPagar
+        {
+            Id = Guid.NewGuid(),
+            FornecedorId = outroFornecedor.Id,
+            Descricao = "Conta de outro fornecedor",
+            Vencimento = new DateOnly(2026, 4, 10),
+            ValorOriginal = 500m
+        };
+        db.Fornecedores.Add(outroFornecedor);
+        db.ContasPagar.Add(conta);
+        await db.SaveChangesAsync();
+
+        var input = Input(fornecedorId) with { ContaPagarId = conta.Id };
+        var resultado = await gerenciador.CriarAsync(input, usuarioId);
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains(resultado.Operacao.Erros, erro => erro.Contains("mesmo fornecedor"));
+    }
+
+    [Fact]
     public async Task ListarAsync_filtra_por_numero_e_por_fornecedor()
     {
         var (gerenciador, _, db, fornecedorId, usuarioId) = await CriarAsync();
