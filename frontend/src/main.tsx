@@ -51,7 +51,29 @@ function Admin({children}:{children:React.ReactNode}){return <Guard admin>{child
 function Title({title,subtitle,action}:{title:string;subtitle?:string;action?:React.ReactNode}){return <div className="title"><div><p className="eyebrow">Financeiro ONRTDPJ</p><h1>{title}</h1>{subtitle&&<p>{subtitle}</p>}</div>{action}</div>}
 function Loading(){return <div className="card empty">Carregando dados…</div>}
 function useLoad<T>(url:string){const [data,setData]=useState<T>(),[error,setError]=useState('');const load=()=>{if(!url)return;api<T>(url).then(setData).catch(e=>setError(e.message))};useEffect(()=>{load()},[url]);return{data,error,load}}
-function Dashboard(){const {data}=useLoad<any>('/api/dashboard');if(!data)return <Loading/>;const cards=[['Em aberto',data.totalEmAberto,data.quantidadeEmAberto],['Vencidas',data.totalVencidas,data.quantidadeVencidas],['A pagar hoje',data.totalAPagarHoje],['Próximos 7 dias',data.totalAPagarProximos7Dias],['Pago no mês',data.totalPagoNoMes],['Pago no ano',data.totalPagoNoAno]];return <><Title title="Painel financeiro" subtitle="Visão consolidada das obrigações e pagamentos."/><div className="metrics">{cards.map(c=><article key={c[0]}><span>{c[0]}</span><b>{money(c[1])}</b>{c[2]!=null&&<small>{c[2]} lançamento(s)</small>}</article>)}</div><section className="card"><h2>Próximos vencimentos</h2><Table rows={data.proximosVencimentos||[]} cols={[['Fornecedor','fornecedor'],['Descrição','descricao'],['Vencimento','vencimento','date'],['Valor','valorFinal','money']]}/></section></>}
+const coresCentroCusto=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#8a949c'];
+function fatiaPizza(cx:number,cy:number,r:number,anguloInicial:number,anguloFinal:number){
+ const rad=(a:number)=>(a-90)*Math.PI/180;
+ const x1=cx+r*Math.cos(rad(anguloInicial)),y1=cy+r*Math.sin(rad(anguloInicial));
+ const x2=cx+r*Math.cos(rad(anguloFinal)),y2=cy+r*Math.sin(rad(anguloFinal));
+ const arcoGrande=anguloFinal-anguloInicial>180?1:0;
+ return `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${arcoGrande} 1 ${x2},${y2} Z`;
+}
+function GraficoPizzaCentroCusto({dados}:{dados:{centroCusto:string;total:number}[]}){
+ const total=dados.reduce((s,d)=>s+d.total,0);
+ if(!dados.length||total<=0)return <p className="empty">Nenhum dado para exibir.</p>;
+ const ordenado=[...dados].sort((a,b)=>b.total-a.total);
+ const outros=ordenado.slice(5).reduce((s,d)=>s+d.total,0);
+ const fatias=outros>0?[...ordenado.slice(0,5),{centroCusto:'Outros',total:outros}]:ordenado;
+ let anguloAcumulado=0;
+ const arcos=fatias.map((f,i)=>{const pct=f.total/total*100,anguloInicial=anguloAcumulado,anguloFinal=anguloAcumulado+pct*3.6;anguloAcumulado=anguloFinal;return{...f,pct,anguloInicial,anguloFinal,cor:coresCentroCusto[i]}});
+ return <div className="pizza-wrap">
+  <svg viewBox="0 0 220 220" width={220} height={220} role="img" aria-label="Distribuição do gasto por centro de custo">
+   {arcos.length===1?<circle cx={110} cy={110} r={100} fill={arcos[0].cor}/>:arcos.map(a=><path key={a.centroCusto} d={fatiaPizza(110,110,100,a.anguloInicial,a.anguloFinal)} fill={a.cor} stroke="#fff" strokeWidth={2}/>)}
+  </svg>
+  <ul className="pizza-legenda">{arcos.map(a=><li key={a.centroCusto}><span className="pizza-swatch" style={{background:a.cor}}/>{a.centroCusto}<b>{a.pct.toFixed(1)}%</b></li>)}</ul>
+ </div>}
+function Dashboard(){const {data}=useLoad<any>('/api/dashboard');if(!data)return <Loading/>;const cards=[['Em aberto',data.totalEmAberto,data.quantidadeEmAberto],['Vencidas',data.totalVencidas,data.quantidadeVencidas],['A pagar hoje',data.totalAPagarHoje],['Próximos 7 dias',data.totalAPagarProximos7Dias],['Pago no mês',data.totalPagoNoMes],['Pago no ano',data.totalPagoNoAno]];return <><Title title="Painel financeiro" subtitle="Visão consolidada das obrigações e pagamentos."/><div className="metrics">{cards.map(c=><article key={c[0]}><span>{c[0]}</span><b>{money(c[1])}</b>{c[2]!=null&&<small>{c[2]} lançamento(s)</small>}</article>)}</div><section className="card"><h2>Gasto por centro de custo</h2><GraficoPizzaCentroCusto dados={data.gastoPorCentroCusto||[]}/></section><section className="card"><h2>Próximos vencimentos</h2><Table rows={data.proximosVencimentos||[]} cols={[['Fornecedor','fornecedor'],['Descrição','descricao'],['Vencimento','vencimento','date'],['Valor','valorFinal','money']]}/></section></>}
 type Field={name:string;label:string;type?:'text'|'email'|'number'|'date'|'hidden'|'checkbox';required?:boolean;options?:[string,string][];source?:string;optionLabel?:string;soDigitos?:boolean;mascara?:'cpfCnpj'};
 type Config={title:string;subtitle:string;endpoint:string;cols:[string,string,string?][];fields:Field[];delete?:boolean|'inativar'};
 const configs:Record<string,Config>={

@@ -86,6 +86,36 @@ public class PainelFinanceiroTests
     }
 
     [Fact]
+    public async Task ObterAsync_agrupa_gasto_por_centro_de_custo()
+    {
+        var (db, fornecedorId, usuarioId) = await CriarBaseAsync();
+        var hoje = new DateOnly(2026, 6, 15);
+        var marketing = new CentroCusto { Id = Guid.NewGuid(), Nome = "Marketing" };
+        var ti = new CentroCusto { Id = Guid.NewGuid(), Nome = "TI" };
+        db.CentrosDeCusto.AddRange(marketing, ti);
+
+        var semCentro = NovaConta(fornecedorId, usuarioId, hoje, 100m);
+        var doMarketing = NovaConta(fornecedorId, usuarioId, hoje, 300m);
+        doMarketing.CentroCustoId = marketing.Id;
+        var doTi = NovaConta(fornecedorId, usuarioId, hoje, 200m);
+        doTi.CentroCustoId = ti.Id;
+        var doTiPaga = NovaConta(fornecedorId, usuarioId, hoje, 50m, StatusFinanceiro.Paga);
+        doTiPaga.CentroCustoId = ti.Id;
+        var cancelada = NovaConta(fornecedorId, usuarioId, hoje, 999m, StatusFinanceiro.Cancelada);
+        cancelada.CentroCustoId = ti.Id;
+        db.ContasPagar.AddRange(semCentro, doMarketing, doTi, doTiPaga, cancelada);
+        await db.SaveChangesAsync();
+
+        var painel = new PainelFinanceiro(db, new RelogioFixo(hoje));
+        var indicadores = await painel.ObterAsync();
+
+        Assert.Equal(3, indicadores.GastoPorCentroCusto.Count);
+        Assert.Equal(300m, indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "Marketing").Total);
+        Assert.Equal(250m, indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "TI").Total); // 200 + 50 paga; cancelada não entra
+        Assert.Equal(100m, indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "Sem centro de custo").Total);
+    }
+
+    [Fact]
     public async Task ObterAsync_lista_proximos_vencimentos_ordenados()
     {
         var (db, fornecedorId, usuarioId) = await CriarBaseAsync();

@@ -69,6 +69,20 @@ public sealed class PainelFinanceiro(AppDbContext db, IRelogio relogio) : IPaine
             .Select(c => new VencimentoProximo(c.Id, c.Fornecedor!.RazaoSocial, c.Descricao, c.Vencimento, c.ValorFinal))
             .ToListAsync();
 
+        // Cancelada não representa despesa de fato; Paga entra (é gasto
+        // reconhecido do setor), diferente de "abertas" acima. Agrupa em
+        // memória depois de projetar: GroupBy+Sum sobre o resultado de um
+        // LEFT JOIN (CentroCusto é opcional) não traduz no provider InMemory
+        // usado nos testes — ver AppDbContextFactory.
+        var gastoPorCentroCusto = (await db.ContasPagar.AsNoTracking()
+                .Where(c => c.ExcluidoEm == null && c.StatusFinanceiro != StatusFinanceiro.Cancelada)
+                .Select(c => new { Centro = c.CentroCusto == null ? "Sem centro de custo" : c.CentroCusto.Nome, c.ValorFinal })
+                .ToListAsync())
+            .GroupBy(c => c.Centro)
+            .Select(g => new GastoPorCentroCusto(g.Key, g.Sum(c => c.ValorFinal)))
+            .OrderByDescending(g => g.Total)
+            .ToList();
+
         return new IndicadoresPainel(
             totalEmAberto, quantidadeEmAberto,
             totalVencidas, quantidadeVencidas,
@@ -76,6 +90,7 @@ public sealed class PainelFinanceiro(AppDbContext db, IRelogio relogio) : IPaine
             totalPagoNoMes, totalPagoNoAno,
             totalCartaoNoAno,
             totalNaoIdentificado, quantidadeNaoIdentificado,
-            proximosVencimentos);
+            proximosVencimentos,
+            gastoPorCentroCusto);
     }
 }

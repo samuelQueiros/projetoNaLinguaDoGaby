@@ -8,6 +8,9 @@ public sealed record VencimentoProximo(
     DateOnly Vencimento,
     decimal ValorFinal);
 
+/// <summary>Soma de ValorFinal das contas a pagar de um centro de custo, para o gráfico de pizza do painel.</summary>
+public sealed record GastoPorCentroCusto(string CentroCusto, decimal Total);
+
 /// <summary>
 /// Indicadores do dashboard financeiro (seção 9 do escopo). "Vencida"/"a
 /// vencer"/"hoje"/"próximos 7 dias" são calculados a partir de
@@ -28,7 +31,8 @@ public sealed record IndicadoresPainel(
     decimal TotalDespesasCartaoNoAno,
     decimal TotalPagamentoNaoIdentificado,
     int QuantidadePagamentoNaoIdentificado,
-    IReadOnlyList<VencimentoProximo> ProximosVencimentos);
+    IReadOnlyList<VencimentoProximo> ProximosVencimentos,
+    IReadOnlyList<GastoPorCentroCusto> GastoPorCentroCusto);
 
 public interface IPainelFinanceiro
 {
