@@ -286,7 +286,7 @@ function DocumentosConta({conta,onMessage}:{conta:any;onMessage:(mensagem:string
 }
 function Contas(){
  const rota=useLocation();
- const [filtro,setFiltro]=useState<any>({}),[pagina,setPagina]=useState(1);
+ const [filtro,setFiltro]=useState<any>({}),[pagina,setPagina]=useState(1),[filtroAberto,setFiltroAberto]=useState(false);
  function atualizarFiltro(novo:any){setFiltro(novo);setPagina(1)}
  const qs=Object.entries({...filtro,pagina,tamanhoPagina:tamanhoPaginaContas}).filter(([,v])=>v).map(([k,v])=>k+'='+encodeURIComponent(v as string)).join('&');
  const {data,load}=useLoad<any>('/api/contas-a-pagar/paginado'+(qs?'?'+qs:'')),{data:fornecedores}=useLoad<any[]>('/api/fornecedores?incluirExcluidos=false'),{data:formasPagamento}=useLoad<any[]>('/api/formas-pagamento?apenasAtivos=true'),{data:centrosCusto}=useLoad<any[]>('/api/centros-custo?apenasAtivos=true');
@@ -295,6 +295,7 @@ function Contas(){
  useEffect(()=>{if(contaSelecionadaId)api<any>('/api/contas-a-pagar/'+contaSelecionadaId).then(conta=>setEditing(conta)).catch(x=>setMsg((x as Error).message))},[contaSelecionadaId]);
  const contas=data?.itens||[],totalPaginas=data?.totalPaginas||1;
  const filtroAtivo=filtro.fornecedorId||filtro.statusFinanceiro||filtro.statusAprovacao||filtro.vencimentoInicial||filtro.vencimentoFinal;
+ const qtdFiltrosAtivos=Object.values(filtro).filter(Boolean).length;
  async function salvar(e:React.FormEvent){e.preventDefault();const body={...editing};delete body.id;delete body.criadoEm;delete body.atualizadoEm;delete body._aviso;Object.keys(body).filter(k=>typeof body[k]==='object').forEach(k=>delete body[k]);try{const r:any=await api('/api/contas-a-pagar'+(editing.id?'/'+editing.id:''),{method:editing.id?'PUT':'POST',body:JSON.stringify(body)});const op=r.operacao||r;if(op.sucesso===false)throw new Error(op.erros.join(' '));setEditing(null);setMsg('Conta salva com sucesso.');load()}catch(x){setMsg((x as Error).message)}}
  async function action(name:string){const motivo=name==='rejeitar'?prompt('Motivo da rejeição:'):undefined;const r:any=await api('/api/contas-a-pagar/'+editing.id+'/'+name,{method:'POST',body:motivo?JSON.stringify({motivo}):undefined});if(r.sucesso===false){setMsg(r.erros.join(' '));return}setEditing(null);setMsg('Ação registrada com sucesso.');load()}
  async function confirmarAprovacao(){if(!editing?.id)return;setAprovando(true);setErroAprovacao('');try{const r:any=await api('/api/contas-a-pagar/'+editing.id+'/aprovar',{method:'POST'});if(r.sucesso===false)throw new Error(r.erros.join(' '));setConfirmacaoAprovacao(false);setEditing(null);setMsg('Conta aprovada com sucesso. A ação foi registrada na auditoria.');load()}catch(x){setErroAprovacao((x as Error).message)}finally{setAprovando(false)}}
@@ -303,13 +304,19 @@ function Contas(){
  const pendenteDeDecisao=editing?.id&&(editing.statusAprovacao==='Cadastrada'||editing.statusAprovacao==='AguardandoAprovacao');
  const valorFinalPreview=(Number(editing?.valorOriginal)||0)-(Number(editing?.desconto)||0)+(Number(editing?.juros)||0)+(Number(editing?.multa)||0);
  return <><Title title="Contas a pagar" subtitle="Lançamentos, aprovação e situação financeira." action={<button onClick={()=>setEditing({desconto:0,juros:0,multa:0})}>Nova conta</button>}/>{!editing&&msg&&<div className="alert">{msg}</div>}
-  <section className="card form-grid">
-   <label>Fornecedor<select value={filtro.fornecedorId||''} onChange={e=>atualizarFiltro({...filtro,fornecedorId:e.target.value})}><option value="">Todos</option>{fornecedores?.map(x=><option key={x.id} value={x.id}>{x.razaoSocial}</option>)}</select></label>
-   <label>Status financeiro<select value={filtro.statusFinanceiro||''} onChange={e=>atualizarFiltro({...filtro,statusFinanceiro:e.target.value})}><option value="">Todos</option>{statusFinanceiroOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
-   <label>Aprovação<select value={filtro.statusAprovacao||''} onChange={e=>atualizarFiltro({...filtro,statusAprovacao:e.target.value})}><option value="">Todos</option>{statusAprovacaoOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
-   <label>Vencimento de<input type="date" value={filtro.vencimentoInicial||''} onChange={e=>atualizarFiltro({...filtro,vencimentoInicial:e.target.value})}/></label>
-   <label>Vencimento até<input type="date" value={filtro.vencimentoFinal||''} onChange={e=>atualizarFiltro({...filtro,vencimentoFinal:e.target.value})}/></label>
-   {filtroAtivo&&<div className="actions full"><button type="button" className="secondary" onClick={()=>atualizarFiltro({})}>Limpar filtros</button></div>}
+  <section className="card filtro-card">
+   <button type="button" className="filtro-toggle" onClick={()=>setFiltroAberto(v=>!v)} aria-expanded={filtroAberto}>
+    <span className="filtro-titulo">🔎 Filtros{qtdFiltrosAtivos>0&&<span className="filtro-badge">{qtdFiltrosAtivos}</span>}</span>
+    <span className={'chev'+(filtroAberto?' open':'')}>▾</span>
+   </button>
+   {filtroAberto&&<div className="form-grid filtro-grid">
+    <label>Fornecedor<select value={filtro.fornecedorId||''} onChange={e=>atualizarFiltro({...filtro,fornecedorId:e.target.value})}><option value="">Todos</option>{fornecedores?.map(x=><option key={x.id} value={x.id}>{x.razaoSocial}</option>)}</select></label>
+    <label>Status financeiro<select value={filtro.statusFinanceiro||''} onChange={e=>atualizarFiltro({...filtro,statusFinanceiro:e.target.value})}><option value="">Todos</option>{statusFinanceiroOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>Aprovação<select value={filtro.statusAprovacao||''} onChange={e=>atualizarFiltro({...filtro,statusAprovacao:e.target.value})}><option value="">Todos</option>{statusAprovacaoOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>Vencimento de<input type="date" value={filtro.vencimentoInicial||''} onChange={e=>atualizarFiltro({...filtro,vencimentoInicial:e.target.value})}/></label>
+    <label>Vencimento até<input type="date" value={filtro.vencimentoFinal||''} onChange={e=>atualizarFiltro({...filtro,vencimentoFinal:e.target.value})}/></label>
+    {filtroAtivo&&<div className="actions full"><button type="button" className="secondary" onClick={()=>atualizarFiltro({})}>Limpar filtros</button></div>}
+   </div>}
   </section>
   <section className="card"><Table rows={contas.map((r:any)=>({...r,_aviso:contaComFornecedorInativoPendente(r)}))} onClick={x=>setEditing({...x})} rowClassName={r=>contaComFornecedorInativoPendente(r)&&'row-warning'} cols={[['','_aviso','warn'],['Descrição','descricao'],['Fornecedor','fornecedor.razaoSocial'],['Vencimento','vencimento','date'],['Valor final','valorFinal','money'],['Aprovação','statusAprovacao'],['Financeiro','statusFinanceiro']]}/>
    <div className="pagination"><button type="button" className="secondary" disabled={pagina<=1} onClick={()=>setPagina(p=>p-1)}>Anterior</button><span>Página {data?.pagina||1} de {totalPaginas} · {data?.total??0} registro(s)</span><button type="button" className="secondary" disabled={pagina>=totalPaginas} onClick={()=>setPagina(p=>p+1)}>Próxima</button></div>
@@ -331,18 +338,26 @@ function Documentos(){const {data,load}=useLoad<any>('/api/documentos?pagina=1&t
 const statusFinanceiroOpcoes:[string,string][]=[['Agendada','Agendada'],['EmAberto','Em aberto'],['AVencer','A vencer'],['Vencida','Vencida'],['Paga','Paga'],['Cancelada','Cancelada'],['PagamentoNaoIdentificado','Pagamento não identificado'],['PagamentoRecusadoEstornado','Pagamento recusado/estornado']];
 const statusAprovacaoOpcoes:[string,string][]=[['Cadastrada','Cadastrada'],['AguardandoAprovacao','Aguardando aprovação'],['Aprovada','Aprovada'],['Rejeitada','Rejeitada']];
 function Relatorios(){
- const [filtro,setFiltro]=useState<any>({}),{data:fornecedores}=useLoad<any[]>('/api/fornecedores?incluirExcluidos=false');
+ const [filtro,setFiltro]=useState<any>({}),[filtroAberto,setFiltroAberto]=useState(false),{data:fornecedores}=useLoad<any[]>('/api/fornecedores?incluirExcluidos=false');
+ const qtdFiltrosAtivos=Object.values(filtro).filter(Boolean).length;
  const qs=Object.entries(filtro).filter(([,v])=>v).map(([k,v])=>k+'='+encodeURIComponent(v as string)).join('&');
  const {data}=useLoad<any[]>('/api/contas-a-pagar'+(qs?'?'+qs:''));
  const arquivo=(ext:string)=>'/relatorios/contas-a-pagar.'+ext+(qs?'?'+qs:'');
  return <><Title title="Relatórios" subtitle="Visualize e exporte as contas a pagar no formato necessário."/>
   <div className="cards"><a className="card download" href={arquivo('xlsx')}>Planilha Excel <span>.xlsx</span></a><a className="card download" href={arquivo('csv')}>Arquivo de dados <span>.csv</span></a><a className="card download" href={arquivo('pdf')}>Documento PDF <span>.pdf</span></a></div>
-  <section className="card form-grid">
-   <label>Fornecedor<select value={filtro.fornecedorId||''} onChange={e=>setFiltro({...filtro,fornecedorId:e.target.value})}><option value="">Todos</option>{fornecedores?.map(x=><option key={x.id} value={x.id}>{x.razaoSocial}</option>)}</select></label>
-   <label>Status financeiro<select value={filtro.statusFinanceiro||''} onChange={e=>setFiltro({...filtro,statusFinanceiro:e.target.value})}><option value="">Todos</option>{statusFinanceiroOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
-   <label>Aprovação<select value={filtro.statusAprovacao||''} onChange={e=>setFiltro({...filtro,statusAprovacao:e.target.value})}><option value="">Todos</option>{statusAprovacaoOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
-   <label>Vencimento de<input type="date" value={filtro.vencimentoInicial||''} onChange={e=>setFiltro({...filtro,vencimentoInicial:e.target.value})}/></label>
-   <label>Vencimento até<input type="date" value={filtro.vencimentoFinal||''} onChange={e=>setFiltro({...filtro,vencimentoFinal:e.target.value})}/></label>
+  <section className="card filtro-card">
+   <button type="button" className="filtro-toggle" onClick={()=>setFiltroAberto(v=>!v)} aria-expanded={filtroAberto}>
+    <span className="filtro-titulo">🔎 Filtros{qtdFiltrosAtivos>0&&<span className="filtro-badge">{qtdFiltrosAtivos}</span>}</span>
+    <span className={'chev'+(filtroAberto?' open':'')}>▾</span>
+   </button>
+   {filtroAberto&&<div className="form-grid filtro-grid">
+    <label>Fornecedor<select value={filtro.fornecedorId||''} onChange={e=>setFiltro({...filtro,fornecedorId:e.target.value})}><option value="">Todos</option>{fornecedores?.map(x=><option key={x.id} value={x.id}>{x.razaoSocial}</option>)}</select></label>
+    <label>Status financeiro<select value={filtro.statusFinanceiro||''} onChange={e=>setFiltro({...filtro,statusFinanceiro:e.target.value})}><option value="">Todos</option>{statusFinanceiroOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>Aprovação<select value={filtro.statusAprovacao||''} onChange={e=>setFiltro({...filtro,statusAprovacao:e.target.value})}><option value="">Todos</option>{statusAprovacaoOpcoes.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>Vencimento de<input type="date" value={filtro.vencimentoInicial||''} onChange={e=>setFiltro({...filtro,vencimentoInicial:e.target.value})}/></label>
+    <label>Vencimento até<input type="date" value={filtro.vencimentoFinal||''} onChange={e=>setFiltro({...filtro,vencimentoFinal:e.target.value})}/></label>
+    {qtdFiltrosAtivos>0&&<div className="actions full"><button type="button" className="secondary" onClick={()=>setFiltro({})}>Limpar filtros</button></div>}
+   </div>}
   </section>
   <section className="card"><h2>Prévia — {data?.length??0} registro(s)</h2><Table rows={data||[]} cols={[['Fornecedor','fornecedor.razaoSocial'],['Descrição','descricao'],['Vencimento','vencimento','date'],['Valor original','valorOriginal','money'],['Desconto','desconto','money'],['Juros','juros','money'],['Multa','multa','money'],['Valor final','valorFinal','money'],['Aprovação','statusAprovacao'],['Financeiro','statusFinanceiro']]}/></section>
  </>}
