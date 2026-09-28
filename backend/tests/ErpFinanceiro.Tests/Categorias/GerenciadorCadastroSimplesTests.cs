@@ -145,4 +145,39 @@ public class GerenciadorCadastroSimplesTests
         Assert.True(centro.Ativo);
         Assert.Single(db.CentrosDeCusto);
     }
+
+    [Fact]
+    public async Task CriarAsync_grava_cor_para_CentroCusto()
+    {
+        await using var db = AppDbContextFactory.CriarEmMemoria();
+        var gerenciador = new GerenciadorCadastroSimples<CentroCusto>(db);
+
+        var centro = await gerenciador.CriarAsync("TI", null, "#2a78d6");
+
+        Assert.Equal("#2a78d6", centro.Cor);
+    }
+
+    [Fact]
+    public async Task EditarAsync_atualiza_cor_para_CentroCusto()
+    {
+        await using var db = AppDbContextFactory.CriarEmMemoria();
+        var gerenciador = new GerenciadorCadastroSimples<CentroCusto>(db);
+        var centro = await gerenciador.CriarAsync("RH", null, "#2a78d6");
+
+        await gerenciador.EditarAsync(centro.Id, "RH", null, "#eb6834");
+
+        Assert.Equal("#eb6834", (await db.CentrosDeCusto.FindAsync(centro.Id))!.Cor);
+    }
+
+    [Fact]
+    public async Task CriarAsync_ignora_cor_para_Categoria()
+    {
+        await using var db = AppDbContextFactory.CriarEmMemoria();
+        var gerenciador = new GerenciadorCadastroSimples<Categoria>(db);
+
+        var categoria = await gerenciador.CriarAsync("Aluguel", null, "#2a78d6");
+
+        Assert.Equal("Aluguel", categoria.Nome);
+        Assert.Single(db.Categorias);
+    }
 }

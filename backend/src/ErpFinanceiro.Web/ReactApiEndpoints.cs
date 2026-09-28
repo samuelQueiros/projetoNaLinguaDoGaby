@@ -23,7 +23,7 @@ public static class ReactApiEndpoints
     public sealed record LoginRequest(string Email, string Password, bool RememberMe);
     public sealed record MotivoRequest(string Motivo);
     public sealed record PerfilRequest(PerfilUsuario Perfil);
-    public sealed record CadastroRequest(string Nome, string? Descricao);
+    public sealed record CadastroRequest(string Nome, string? Descricao, string? Cor = null);
     public sealed record ChatRequest(IReadOnlyList<MensagemChatIa> Historico, string Mensagem);
 
     public static void MapReactApi(this WebApplication app)
@@ -66,8 +66,8 @@ public static class ReactApiEndpoints
         a.MapPost("/categorias/{id:guid}/inativar", (Guid id, IGerenciadorCadastroSimples<Categoria> g) => g.InativarAsync(id));
         a.MapPost("/categorias/{id:guid}/reativar", (Guid id, IGerenciadorCadastroSimples<Categoria> g) => g.ReativarAsync(id));
         a.MapGet("/centros-custo", (bool apenasAtivos, IGerenciadorCadastroSimples<CentroCusto> g) => g.ListarAsync(apenasAtivos));
-        a.MapPost("/centros-custo", (CadastroRequest r, IGerenciadorCadastroSimples<CentroCusto> g) => g.CriarAsync(r.Nome, r.Descricao));
-        a.MapPut("/centros-custo/{id:guid}", (Guid id, CadastroRequest r, IGerenciadorCadastroSimples<CentroCusto> g) => g.EditarAsync(id, r.Nome, r.Descricao));
+        a.MapPost("/centros-custo", (CadastroRequest r, IGerenciadorCadastroSimples<CentroCusto> g) => g.CriarAsync(r.Nome, r.Descricao, r.Cor));
+        a.MapPut("/centros-custo/{id:guid}", (Guid id, CadastroRequest r, IGerenciadorCadastroSimples<CentroCusto> g) => g.EditarAsync(id, r.Nome, r.Descricao, r.Cor));
         a.MapPost("/centros-custo/{id:guid}/inativar", (Guid id, IGerenciadorCadastroSimples<CentroCusto> g) => g.InativarAsync(id));
         a.MapPost("/centros-custo/{id:guid}/reativar", (Guid id, IGerenciadorCadastroSimples<CentroCusto> g) => g.ReativarAsync(id));
         a.MapGet("/formas-pagamento", (bool apenasAtivos, IGerenciadorCadastroSimples<FormaPagamento> g) => g.ListarAsync(apenasAtivos));

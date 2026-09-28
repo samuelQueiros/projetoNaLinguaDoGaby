@@ -25,7 +25,7 @@ public class ExecutorFerramentasChatIaTests
         public IndicadoresPainel Retorno { get; set; } = new(
             1000m, 5, 200m, 1, 50m, 300m, 900m, 400m, 5000m, 100m, 0m, 0,
             new List<VencimentoProximo> { new(Guid.NewGuid(), "Fornecedor X", "Aluguel", DateOnly.FromDateTime(DateTime.Today), 500m) },
-            new List<GastoPorCentroCusto> { new("Administrativo", 1000m) });
+            new List<GastoPorCentroCusto> { new("Administrativo", 1000m, "#2a78d6") });
 
         public Task<IndicadoresPainel> ObterAsync() => Task.FromResult(Retorno);
     }

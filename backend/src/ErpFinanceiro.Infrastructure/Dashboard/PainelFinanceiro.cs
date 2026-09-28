@@ -76,10 +76,15 @@ public sealed class PainelFinanceiro(AppDbContext db, IRelogio relogio) : IPaine
         // usado nos testes — ver AppDbContextFactory.
         var gastoPorCentroCusto = (await db.ContasPagar.AsNoTracking()
                 .Where(c => c.ExcluidoEm == null && c.StatusFinanceiro != StatusFinanceiro.Cancelada)
-                .Select(c => new { Centro = c.CentroCusto == null ? "Sem centro de custo" : c.CentroCusto.Nome, c.ValorFinal })
+                .Select(c => new
+                {
+                    Centro = c.CentroCusto == null ? "Sem centro de custo" : c.CentroCusto.Nome,
+                    Cor = c.CentroCusto == null ? null : c.CentroCusto.Cor,
+                    c.ValorFinal,
+                })
                 .ToListAsync())
             .GroupBy(c => c.Centro)
-            .Select(g => new GastoPorCentroCusto(g.Key, g.Sum(c => c.ValorFinal)))
+            .Select(g => new GastoPorCentroCusto(g.Key, g.Sum(c => c.ValorFinal), g.First().Cor))
             .OrderByDescending(g => g.Total)
             .ToList();
 

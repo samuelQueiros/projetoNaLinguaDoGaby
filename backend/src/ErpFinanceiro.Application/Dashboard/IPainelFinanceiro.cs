@@ -9,7 +9,7 @@ public sealed record VencimentoProximo(
     decimal ValorFinal);
 
 /// <summary>Soma de ValorFinal das contas a pagar de um centro de custo, para o gráfico de pizza do painel.</summary>
-public sealed record GastoPorCentroCusto(string CentroCusto, decimal Total);
+public sealed record GastoPorCentroCusto(string CentroCusto, decimal Total, string? Cor);
 
 /// <summary>
 /// Indicadores do dashboard financeiro (seção 9 do escopo). "Vencida"/"a

@@ -90,7 +90,7 @@ public class PainelFinanceiroTests
     {
         var (db, fornecedorId, usuarioId) = await CriarBaseAsync();
         var hoje = new DateOnly(2026, 6, 15);
-        var marketing = new CentroCusto { Id = Guid.NewGuid(), Nome = "Marketing" };
+        var marketing = new CentroCusto { Id = Guid.NewGuid(), Nome = "Marketing", Cor = "#eb6834" };
         var ti = new CentroCusto { Id = Guid.NewGuid(), Nome = "TI" };
         db.CentrosDeCusto.AddRange(marketing, ti);
 
@@ -111,8 +111,11 @@ public class PainelFinanceiroTests
 
         Assert.Equal(3, indicadores.GastoPorCentroCusto.Count);
         Assert.Equal(300m, indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "Marketing").Total);
+        Assert.Equal("#eb6834", indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "Marketing").Cor);
         Assert.Equal(250m, indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "TI").Total); // 200 + 50 paga; cancelada não entra
+        Assert.Null(indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "TI").Cor); // sem cor definida
         Assert.Equal(100m, indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "Sem centro de custo").Total);
+        Assert.Null(indicadores.GastoPorCentroCusto.Single(g => g.CentroCusto == "Sem centro de custo").Cor);
     }
 
     [Fact]

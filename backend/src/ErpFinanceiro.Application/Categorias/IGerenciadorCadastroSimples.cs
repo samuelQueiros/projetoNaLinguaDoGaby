@@ -11,9 +11,14 @@ namespace ErpFinanceiro.Application.Categorias;
 public interface IGerenciadorCadastroSimples<TEntidade>
     where TEntidade : class, ICadastroSimples
 {
-    Task<TEntidade> CriarAsync(string nome, string? descricao);
+    /// <summary>
+    /// <paramref name="cor"/> só é gravada quando TEntidade implementa
+    /// <see cref="ICadastroComCor"/> (hoje, só CentroCusto) — ignorada
+    /// silenciosamente para os demais cadastros simples.
+    /// </summary>
+    Task<TEntidade> CriarAsync(string nome, string? descricao, string? cor = null);
 
-    Task<ResultadoOperacao> EditarAsync(Guid id, string nome, string? descricao);
+    Task<ResultadoOperacao> EditarAsync(Guid id, string nome, string? descricao, string? cor = null);
 
     /// <summary>Exclusão lógica: Ativo = false, nunca remove a linha.</summary>
     Task<ResultadoOperacao> InativarAsync(Guid id);

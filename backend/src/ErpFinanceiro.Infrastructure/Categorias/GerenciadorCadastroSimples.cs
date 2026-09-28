@@ -9,7 +9,7 @@ namespace ErpFinanceiro.Infrastructure.Categorias;
 public sealed class GerenciadorCadastroSimples<TEntidade>(AppDbContext db) : IGerenciadorCadastroSimples<TEntidade>
     where TEntidade : class, ICadastroSimples, new()
 {
-    public async Task<TEntidade> CriarAsync(string nome, string? descricao)
+    public async Task<TEntidade> CriarAsync(string nome, string? descricao, string? cor = null)
     {
         var entidade = new TEntidade
         {
@@ -18,6 +18,10 @@ public sealed class GerenciadorCadastroSimples<TEntidade>(AppDbContext db) : IGe
             Descricao = descricao,
             Ativo = true,
         };
+        if (entidade is ICadastroComCor comCor)
+        {
+            comCor.Cor = cor;
+        }
 
         db.Set<TEntidade>().Add(entidade);
         await SalvarOuLancarNomeDuplicadoAsync();
@@ -25,7 +29,7 @@ public sealed class GerenciadorCadastroSimples<TEntidade>(AppDbContext db) : IGe
         return entidade;
     }
 
-    public async Task<ResultadoOperacao> EditarAsync(Guid id, string nome, string? descricao)
+    public async Task<ResultadoOperacao> EditarAsync(Guid id, string nome, string? descricao, string? cor = null)
     {
         var entidade = await db.Set<TEntidade>().FirstOrDefaultAsync(e => e.Id == id);
         if (entidade is null)
@@ -35,6 +39,10 @@ public sealed class GerenciadorCadastroSimples<TEntidade>(AppDbContext db) : IGe
 
         entidade.Nome = nome;
         entidade.Descricao = descricao;
+        if (entidade is ICadastroComCor comCor)
+        {
+            comCor.Cor = cor;
+        }
 
         try
         {
