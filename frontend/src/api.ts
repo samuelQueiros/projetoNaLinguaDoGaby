@@ -18,3 +18,10 @@ export const date = (v:string) => v ? new Intl.DateTimeFormat('pt-BR',{timeZone:
 export const nested = (obj:any, path:string) => path.split('.').reduce((x,k) => x?.[k],obj);
 export const hoje = () => new Date().toISOString().slice(0,10);
 export const semLetras = (v:string) => v.replace(/\p{L}/gu,'');
+export const mascararCpfCnpj = (v:string) => {
+ const d = v.replace(/\D/g,'').slice(0,14);
+ const [grupos,separadores] = d.length <= 11 ? [[3,3,3,2],['.','.','-']] : [[2,3,3,4,2],['.','.','/','-']];
+ let out = '', i = 0;
+ for (let g = 0; g < grupos.length && i < d.length; g++) { out += (g ? separadores[g-1] : '') + d.slice(i, i + grupos[g]); i += grupos[g] }
+ return out;
+};

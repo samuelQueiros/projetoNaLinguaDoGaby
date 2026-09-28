@@ -22,7 +22,7 @@ public class ContratosFornecedorTests
         var storage = new ArmazenamentoAnexosFalso();
         var gerenciador = new GerenciadorFornecedores(db, auditoria, userManager, storage, NullLogger<GerenciadorFornecedores>.Instance);
 
-        var fornecedor = (await gerenciador.CriarAsync(new("Fornecedor Teste Ltda", "Fornecedor Teste", "12345678000199",
+        var fornecedor = (await gerenciador.CriarAsync(new("Fornecedor Teste Ltda", "Fornecedor Teste", "12345678000195",
             null, null, null, null, null, null, null))).Entidade!;
 
         return (db, gerenciador, auditoria, storage, fornecedor.Id, usuario.Id);
@@ -90,7 +90,7 @@ public class ContratosFornecedorTests
     public async Task ListarContratosAsync_retorna_so_os_contratos_do_fornecedor()
     {
         var (db, gerenciador, _, _, fornecedorId, usuarioId) = await PrepararAsync();
-        var outroFornecedor = (await gerenciador.CriarAsync(new("Outro Fornecedor", null, "98765432000188",
+        var outroFornecedor = (await gerenciador.CriarAsync(new("Outro Fornecedor", null, "98765432000198",
             null, null, null, null, null, null, null))).Entidade!;
         await gerenciador.AdicionarContratoAsync(fornecedorId, Novo("Contrato A"), usuarioId);
         await gerenciador.AdicionarContratoAsync(fornecedorId, Novo("Contrato B"), usuarioId);

@@ -23,7 +23,7 @@ public class GerenciadorFornecedoresTests
         return (db, gerenciador, auditoria, userManager, storage, usuario.Id);
     }
 
-    private static CriarFornecedorInput InputPadrao(string cnpj = "12.345.678/0001-99") =>
+    private static CriarFornecedorInput InputPadrao(string cnpj = "12.345.678/0001-95") =>
         new("Fornecedor Teste Ltda", "Fornecedor Teste", cnpj, null, null, null, null, null, null, null);
 
     [Fact]
@@ -31,9 +31,34 @@ public class GerenciadorFornecedoresTests
     {
         var (_, gerenciador, _, _, _, _) = await PrepararAsync();
 
-        var fornecedor = (await gerenciador.CriarAsync(InputPadrao("12.345.678/0001-99"))).Entidade!;
+        var fornecedor = (await gerenciador.CriarAsync(InputPadrao("12.345.678/0001-95"))).Entidade!;
 
-        Assert.Equal("12345678000199", fornecedor.CnpjCpf);
+        Assert.Equal("12345678000195", fornecedor.CnpjCpf);
+    }
+
+    [Theory]
+    [InlineData("12345678900")] // CPF com dígitos verificadores errados
+    [InlineData("12345678000199")] // CNPJ com dígitos verificadores errados
+    [InlineData("11111111111")] // todos os dígitos iguais
+    [InlineData("123")] // tamanho inválido
+    public async Task CriarAsync_com_cpfCnpj_invalido_retorna_falha(string cnpjCpf)
+    {
+        var (_, gerenciador, _, _, _, _) = await PrepararAsync();
+
+        var resultado = await gerenciador.CriarAsync(InputPadrao(cnpjCpf));
+
+        Assert.False(resultado.Sucesso);
+    }
+
+    [Fact]
+    public async Task EditarAsync_com_cpfCnpj_invalido_retorna_falha()
+    {
+        var (_, gerenciador, _, _, _, _) = await PrepararAsync();
+        var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
+
+        var resultado = await gerenciador.EditarAsync(fornecedor.Id, InputPadrao() with { CnpjCpf = "12345678900" });
+
+        Assert.False(resultado.Sucesso);
     }
 
     // Não há teste automatizado aqui pra "CriarAsync com CNPJ duplicado
@@ -64,8 +89,8 @@ public class GerenciadorFornecedoresTests
     public async Task ListarAsync_oculta_excluidos_por_padrao()
     {
         var (_, gerenciador, _, _, _, _) = await PrepararAsync();
-        var ativo = (await gerenciador.CriarAsync(InputPadrao("11.111.111/0001-11"))).Entidade!;
-        var excluido = (await gerenciador.CriarAsync(InputPadrao("22.222.222/0001-22"))).Entidade!;
+        var ativo = (await gerenciador.CriarAsync(InputPadrao("11.111.111/0001-91"))).Entidade!;
+        var excluido = (await gerenciador.CriarAsync(InputPadrao("22.222.222/0001-91"))).Entidade!;
         await gerenciador.ExcluirAsync(excluido.Id);
 
         var listaPadrao = await gerenciador.ListarAsync();
@@ -116,9 +141,9 @@ public class GerenciadorFornecedoresTests
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
 
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
-            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular A", "11122233344", null, Principal: true), usuarioId);
+            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular A", "11122233396", null, Principal: true), usuarioId);
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
-            new DadosBancariosInput("Banco B", "0002", "222-2", TipoContaBancaria.Poupanca, "Titular B", "55566677788", "chave-pix", Principal: true), usuarioId);
+            new DadosBancariosInput("Banco B", "0002", "222-2", TipoContaBancaria.Poupanca, "Titular B", "55566677720", "chave-pix", Principal: true), usuarioId);
 
         var dados = await db.DadosBancariosFornecedores.Where(d => d.FornecedorId == fornecedor.Id).ToListAsync();
 
@@ -137,12 +162,12 @@ public class GerenciadorFornecedoresTests
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
 
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
-            new DadosBancariosInput("Banco A", "0001", "999888777", TipoContaBancaria.Corrente, "Titular Teste", "12345678901", "chave-pix-teste", Principal: true), usuarioId);
+            new DadosBancariosInput("Banco A", "0001", "999888777", TipoContaBancaria.Corrente, "Titular Teste", "12345678909", "chave-pix-teste", Principal: true), usuarioId);
 
         var dados = await db.DadosBancariosFornecedores.SingleAsync(d => d.FornecedorId == fornecedor.Id);
         Assert.Equal("999888777", dados.Conta);
         Assert.Equal("chave-pix-teste", dados.ChavePix);
-        Assert.Equal("12345678901", dados.CpfCnpjTitular);
+        Assert.Equal("12345678909", dados.CpfCnpjTitular);
     }
 
     [Fact]
@@ -152,14 +177,14 @@ public class GerenciadorFornecedoresTests
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
 
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
-            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Teste", "123.456.789-01", null, Principal: true), usuarioId);
+            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Teste", "123.456.789-09", null, Principal: true), usuarioId);
 
         var dados = await db.DadosBancariosFornecedores.SingleAsync(d => d.FornecedorId == fornecedor.Id);
-        Assert.Equal("12345678901", dados.CpfCnpjTitular);
+        Assert.Equal("12345678909", dados.CpfCnpjTitular);
     }
 
     [Theory]
-    [InlineData("", "12345678901")]
+    [InlineData("", "12345678909")]
     [InlineData("Titular Teste", "")]
     public async Task AdicionarDadosBancariosAsync_sem_titular_ou_cpfCnpj_retorna_falha(string nomeTitular, string cpfCnpjTitular)
     {
@@ -173,12 +198,24 @@ public class GerenciadorFornecedoresTests
     }
 
     [Fact]
+    public async Task AdicionarDadosBancariosAsync_com_cpfCnpjTitular_invalido_retorna_falha()
+    {
+        var (_, gerenciador, _, _, _, usuarioId) = await PrepararAsync();
+        var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
+
+        var resultado = await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
+            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Teste", "11122233344", null, Principal: true), usuarioId);
+
+        Assert.False(resultado.Sucesso);
+    }
+
+    [Fact]
     public async Task RemoverDadosBancariosAsync_remove_o_registro()
     {
         var (db, gerenciador, _, _, _, usuarioId) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
-            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Teste", "12345678901", null, Principal: true), usuarioId);
+            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Teste", "12345678909", null, Principal: true), usuarioId);
         var dadosId = (await db.DadosBancariosFornecedores.SingleAsync(d => d.FornecedorId == fornecedor.Id)).Id;
 
         var resultado = await gerenciador.RemoverDadosBancariosAsync(dadosId, usuarioId);
@@ -195,7 +232,7 @@ public class GerenciadorFornecedoresTests
         var consulta = await IdentityTestHelpers.CriarUsuarioComPapelAsync(db, userManager, "Consulta", "Usuária Consulta");
 
         var resultado = await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
-            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Teste", "12345678901", "chave-pix", Principal: true), consulta.Id);
+            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Teste", "12345678909", "chave-pix", Principal: true), consulta.Id);
 
         Assert.False(resultado.Sucesso);
         Assert.Empty(db.DadosBancariosFornecedores.Where(d => d.FornecedorId == fornecedor.Id));
@@ -207,12 +244,12 @@ public class GerenciadorFornecedoresTests
         var (db, gerenciador, auditoria, _, _, usuarioId) = await PrepararAsync();
         var fornecedor = (await gerenciador.CriarAsync(InputPadrao())).Entidade!;
         await gerenciador.AdicionarDadosBancariosAsync(fornecedor.Id,
-            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Original", "11122233344", "chave-pix-original", Principal: true), usuarioId);
+            new DadosBancariosInput("Banco A", "0001", "111-1", TipoContaBancaria.Corrente, "Titular Original", "11122233396", "chave-pix-original", Principal: true), usuarioId);
         var dadosId = (await db.DadosBancariosFornecedores.SingleAsync(d => d.FornecedorId == fornecedor.Id)).Id;
         auditoria.Chamadas.Clear();
 
         await gerenciador.EditarDadosBancariosAsync(dadosId,
-            new DadosBancariosInput("Banco A", "0001", "999-9", TipoContaBancaria.Corrente, "Titular Novo", "55566677788", "chave-pix-nova", Principal: true), usuarioId);
+            new DadosBancariosInput("Banco A", "0001", "999-9", TipoContaBancaria.Corrente, "Titular Novo", "55566677720", "chave-pix-nova", Principal: true), usuarioId);
 
         var chamada = Assert.Single(auditoria.Chamadas);
         Assert.Equal("EditarDadosBancarios", chamada.Acao);
@@ -222,7 +259,7 @@ public class GerenciadorFornecedoresTests
         Assert.DoesNotContain("999-9", valorNovoSerializado);
         Assert.DoesNotContain("chave-pix", valorAnteriorSerializado);
         Assert.DoesNotContain("chave-pix", valorNovoSerializado);
-        Assert.DoesNotContain("11122233344", valorAnteriorSerializado);
-        Assert.DoesNotContain("55566677788", valorNovoSerializado);
+        Assert.DoesNotContain("11122233396", valorAnteriorSerializado);
+        Assert.DoesNotContain("55566677720", valorNovoSerializado);
     }
 }

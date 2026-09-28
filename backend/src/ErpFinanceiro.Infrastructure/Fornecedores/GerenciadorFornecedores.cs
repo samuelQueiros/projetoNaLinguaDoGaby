@@ -19,12 +19,18 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
 {
     public async Task<ResultadoCriacao<Fornecedor>> CriarAsync(CriarFornecedorInput input)
     {
+        var cnpjCpf = SomenteDigitos(input.CnpjCpf);
+        if (!ValidadorCpfCnpj.EhValido(cnpjCpf))
+        {
+            return ResultadoCriacao<Fornecedor>.Falha("CPF/CNPJ inválido.");
+        }
+
         var fornecedor = new Fornecedor
         {
             Id = Guid.NewGuid(),
             RazaoSocial = input.RazaoSocial,
             NomeFantasia = input.NomeFantasia,
-            CnpjCpf = SomenteDigitos(input.CnpjCpf),
+            CnpjCpf = cnpjCpf,
             InscricaoEstadual = input.InscricaoEstadual,
             Endereco = input.Endereco,
             Telefone = input.Telefone,
@@ -57,9 +63,15 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
             return ResultadoOperacao.Falha("Fornecedor não encontrado.");
         }
 
+        var cnpjCpf = SomenteDigitos(input.CnpjCpf);
+        if (!ValidadorCpfCnpj.EhValido(cnpjCpf))
+        {
+            return ResultadoOperacao.Falha("CPF/CNPJ inválido.");
+        }
+
         fornecedor.RazaoSocial = input.RazaoSocial;
         fornecedor.NomeFantasia = input.NomeFantasia;
-        fornecedor.CnpjCpf = SomenteDigitos(input.CnpjCpf);
+        fornecedor.CnpjCpf = cnpjCpf;
         fornecedor.InscricaoEstadual = input.InscricaoEstadual;
         fornecedor.Endereco = input.Endereco;
         fornecedor.Telefone = input.Telefone;
@@ -370,6 +382,11 @@ public sealed class GerenciadorFornecedores(AppDbContext db, IRegistradorAuditor
         if (string.IsNullOrWhiteSpace(input.CpfCnpjTitular))
         {
             return ResultadoOperacao.Falha("Informe o CPF/CNPJ do titular da conta.");
+        }
+
+        if (!ValidadorCpfCnpj.EhValido(SomenteDigitos(input.CpfCnpjTitular)))
+        {
+            return ResultadoOperacao.Falha("CPF/CNPJ do titular da conta inválido.");
         }
 
         return null;
