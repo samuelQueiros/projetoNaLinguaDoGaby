@@ -211,6 +211,12 @@
 .account-flag.approved,.account-flag.paid { background: #e2f5e9; border-color: #9dd1b0; color: #246b43; }
 .row-paid td { background: #eaf8ee; color: #28573b; }
 .row-paid:hover td { background: #dff3e6; }
+.selection-cell { width: 42px; text-align: center; }
+.selection-cell input { width: 16px; height: 16px; margin: 0; accent-color: #087c75; cursor: pointer; }
+.row-selected td { box-shadow: inset 0 1px #91cfc4, inset 0 -1px #91cfc4; }
+.bulk-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .6rem; margin-bottom: 1rem; padding: .65rem .8rem; border: 1px solid #cfe2df; border-radius: 8px; background: #f1f8f6; }
+.bulk-actions span { margin-right: auto; color: #315964; font-size: .82rem; font-weight: 700; }
+.bulk-actions button { padding: .5rem .75rem; font-size: .78rem; }
 .monthly-chart-card { margin-bottom: 1.2rem; }
 .chart-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; margin-bottom: 1rem; }
 .chart-heading h2 { margin-bottom: .25rem; }
