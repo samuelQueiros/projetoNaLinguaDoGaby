@@ -14,6 +14,7 @@ public sealed class GerenciadorContasBancariasEmpresa(AppDbContext db, IRegistra
     public async Task<ContaBancariaEmpresa> CriarAsync(ContaBancariaEmpresaInput input, Guid usuarioId)
     {
         await ExigirPermissaoAsync(usuarioId);
+        ExigirCamposNumericos(input);
 
         var conta = new ContaBancariaEmpresa
         {
@@ -43,6 +44,12 @@ public sealed class GerenciadorContasBancariasEmpresa(AppDbContext db, IRegistra
             return erroPermissao;
         }
 
+        var erroValidacao = ValidarCamposNumericos(input);
+        if (erroValidacao is not null)
+        {
+            return ResultadoOperacao.Falha(erroValidacao);
+        }
+
         var conta = await db.ContasBancariasEmpresa.FirstOrDefaultAsync(c => c.Id == id);
         if (conta is null)
         {
@@ -65,6 +72,43 @@ public sealed class GerenciadorContasBancariasEmpresa(AppDbContext db, IRegistra
         return ResultadoOperacao.Ok();
     }
 
+    public async Task<ResultadoOperacao> ExcluirAsync(Guid id, Guid usuarioId)
+    {
+        var erroPermissao = await ValidarPermissaoAsync(usuarioId);
+        if (erroPermissao is not null)
+        {
+            return erroPermissao;
+        }
+
+        var conta = await db.ContasBancariasEmpresa.FirstOrDefaultAsync(c => c.Id == id);
+        if (conta is null)
+        {
+            return ResultadoOperacao.Falha("Conta bancária não encontrada.");
+        }
+
+        if (await db.Pagamentos.AnyAsync(p => p.ContaBancariaEmpresaId == id))
+        {
+            return ResultadoOperacao.Falha(
+                "Esta conta bancária possui pagamentos vinculados e não pode ser excluída.");
+        }
+
+        var anterior = new { conta.Banco, conta.Agencia, conta.Tipo, conta.Apelido, conta.Ativo };
+        db.ContasBancariasEmpresa.Remove(conta);
+
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return ResultadoOperacao.Falha(
+                "Esta conta bancária possui vínculos e não pode ser excluída.");
+        }
+
+        await auditoria.RegistrarAsync(usuarioId, "Excluir", nameof(ContaBancariaEmpresa), id, anterior, null);
+        return ResultadoOperacao.Ok();
+    }
+
     public Task<ResultadoOperacao> InativarAsync(Guid id, Guid usuarioId) => AlterarAtivoAsync(id, false, usuarioId);
 
     public Task<ResultadoOperacao> ReativarAsync(Guid id, Guid usuarioId) => AlterarAtivoAsync(id, true, usuarioId);
@@ -78,6 +122,32 @@ public sealed class GerenciadorContasBancariasEmpresa(AppDbContext db, IRegistra
         }
 
         return await query.OrderBy(c => c.Apelido).ToListAsync();
+    }
+
+    private static string? ValidarCamposNumericos(ContaBancariaEmpresaInput input)
+    {
+        if (string.IsNullOrEmpty(input.Banco) || input.Banco.Any(c => !char.IsAsciiDigit(c)))
+        {
+            return "Banco deve conter somente números.";
+        }
+
+        if (string.IsNullOrEmpty(input.Agencia) || input.Agencia.Any(c => !char.IsAsciiDigit(c)))
+        {
+            return "Agência deve conter somente números.";
+        }
+
+        return string.IsNullOrEmpty(input.Conta) || input.Conta.Any(c => !char.IsAsciiDigit(c))
+            ? "Conta deve conter somente números."
+            : null;
+    }
+
+    private static void ExigirCamposNumericos(ContaBancariaEmpresaInput input)
+    {
+        var erro = ValidarCamposNumericos(input);
+        if (erro is not null)
+        {
+            throw new InvalidOperationException(erro);
+        }
     }
 
     private async Task<ResultadoOperacao> AlterarAtivoAsync(Guid id, bool ativo, Guid usuarioId)

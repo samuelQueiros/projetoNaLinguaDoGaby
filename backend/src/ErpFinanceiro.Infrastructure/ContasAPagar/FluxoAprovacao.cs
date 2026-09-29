@@ -60,6 +60,9 @@ public sealed class FluxoAprovacao(AppDbContext db, UserManager<Usuario> userMan
         }
 
         var statusAnterior = conta.StatusAprovacao;
+        var statusFinanceiroAnterior = conta.StatusFinanceiro;
+        var pagamentosRevertidos = 0;
+        var valorPagoRevertido = 0m;
         conta.StatusAprovacao = statusDestino;
         if (acao == AcaoAprovacao.Rejeitada)
         {
@@ -68,6 +71,21 @@ public sealed class FluxoAprovacao(AppDbContext db, UserManager<Usuario> userMan
         else if (acao == AcaoAprovacao.RetornadaCadastro)
         {
             conta.MotivoCancelamentoRejeicao = null;
+            if (conta.StatusFinanceiro == StatusFinanceiro.Paga)
+            {
+                var pagamentosConfirmados = await db.Pagamentos
+                    .Where(p => p.ContaPagarId == contaPagarId && p.Status == StatusPagamento.Confirmado)
+                    .ToListAsync();
+                pagamentosRevertidos = pagamentosConfirmados.Count;
+                valorPagoRevertido = pagamentosConfirmados.Sum(p => p.ValorPago);
+                foreach (var pagamento in pagamentosConfirmados)
+                {
+                    pagamento.Status = StatusPagamento.Estornado;
+                    pagamento.MotivoEstorno = "Conta retornada para cadastrada.";
+                }
+
+                conta.StatusFinanceiro = StatusFinanceiro.EmAberto;
+            }
         }
 
         db.AprovacoesConta.Add(new AprovacaoConta
@@ -94,7 +112,8 @@ public sealed class FluxoAprovacao(AppDbContext db, UserManager<Usuario> userMan
         }
 
         await auditoria.RegistrarAsync(usuarioId, acao.ToString(), nameof(ContaPagar), contaPagarId,
-            new { StatusAprovacao = statusAnterior }, new { conta.StatusAprovacao });
+            new { StatusAprovacao = statusAnterior, StatusFinanceiro = statusFinanceiroAnterior },
+            new { conta.StatusAprovacao, conta.StatusFinanceiro, PagamentosRevertidos = pagamentosRevertidos, ValorPagoRevertido = valorPagoRevertido });
 
         return ResultadoOperacao.Ok();
     }

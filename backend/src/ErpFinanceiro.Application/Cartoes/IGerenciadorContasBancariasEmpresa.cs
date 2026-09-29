@@ -13,6 +13,8 @@ public interface IGerenciadorContasBancariasEmpresa
 
     Task<ResultadoOperacao> EditarAsync(Guid id, ContaBancariaEmpresaInput input, Guid usuarioId);
 
+    Task<ResultadoOperacao> ExcluirAsync(Guid id, Guid usuarioId);
+
     Task<ResultadoOperacao> InativarAsync(Guid id, Guid usuarioId);
 
     Task<ResultadoOperacao> ReativarAsync(Guid id, Guid usuarioId);

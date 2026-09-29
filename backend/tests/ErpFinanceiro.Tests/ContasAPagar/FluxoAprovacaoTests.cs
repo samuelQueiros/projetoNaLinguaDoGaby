@@ -189,6 +189,37 @@ public class FluxoAprovacaoTests
     }
 
     [Fact]
+    public async Task RetornarParaCadastradaAsync_conta_paga_restaura_status_financeiro()
+    {
+        var (db, fluxo, _, userManager, conta) = await PrepararAsync();
+        var gestor = await CriarUsuarioComPapelAsync(db, userManager, "Gestor");
+        await fluxo.AprovarAsync(conta.Id, gestor.Id);
+        var pagamento = new Pagamento
+        {
+            Id = Guid.NewGuid(),
+            ContaPagarId = conta.Id,
+            Data = new DateOnly(2026, 9, 29),
+            ValorPago = conta.ValorFinal,
+            ContaBancariaEmpresaId = Guid.NewGuid(),
+            Status = StatusPagamento.Confirmado,
+            RegistradoPorId = gestor.Id,
+        };
+        db.Pagamentos.Add(pagamento);
+        conta.StatusFinanceiro = StatusFinanceiro.Paga;
+        await db.SaveChangesAsync();
+
+        var resultado = await fluxo.RetornarParaCadastradaAsync(conta.Id, gestor.Id);
+
+        Assert.True(resultado.Sucesso);
+        var doBanco = await db.ContasPagar.FindAsync(conta.Id);
+        Assert.Equal(StatusAprovacao.Cadastrada, doBanco!.StatusAprovacao);
+        Assert.Equal(StatusFinanceiro.EmAberto, doBanco.StatusFinanceiro);
+        var pagamentoDoBanco = await db.Pagamentos.FindAsync(pagamento.Id);
+        Assert.Equal(StatusPagamento.Estornado, pagamentoDoBanco!.Status);
+        Assert.Equal("Conta retornada para cadastrada.", pagamentoDoBanco.MotivoEstorno);
+    }
+
+    [Fact]
     public async Task RetornarParaCadastradaAsync_conta_nao_aprovada_retorna_falha()
     {
         var (db, fluxo, _, userManager, conta) = await PrepararAsync();

@@ -120,6 +120,7 @@ public static class ReactApiEndpoints
         a.MapGet("/contas-bancarias", (bool apenasAtivas, IGerenciadorContasBancariasEmpresa g) => g.ListarAsync(apenasAtivas));
         a.MapPost("/contas-bancarias", async (ContaBancariaEmpresaInput r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorContasBancariasEmpresa g) => await g.CriarAsync(r, await Uid(p, um)));
         a.MapPut("/contas-bancarias/{id:guid}", async (Guid id, ContaBancariaEmpresaInput r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorContasBancariasEmpresa g) => await g.EditarAsync(id, r, await Uid(p, um)));
+        a.MapDelete("/contas-bancarias/{id:guid}", async (Guid id, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorContasBancariasEmpresa g) => await g.ExcluirAsync(id, await Uid(p, um)));
         a.MapPost("/contas-bancarias/{id:guid}/{acao}", async (Guid id, string acao, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorContasBancariasEmpresa g) => acao == "reativar" ? await g.ReativarAsync(id, await Uid(p, um)) : await g.InativarAsync(id, await Uid(p, um)));
         a.MapGet("/cartoes", (IGerenciadorCartoes g) => g.ListarAsync());
         a.MapPost("/cartoes", async (CartaoInput r, ClaimsPrincipal p, UserManager<Usuario> um, IGerenciadorCartoes g) => await g.CriarAsync(r, await Uid(p, um)));

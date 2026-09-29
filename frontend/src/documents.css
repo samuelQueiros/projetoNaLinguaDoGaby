@@ -235,13 +235,22 @@
 .monthly-chart { min-height: 275px; overflow-x: auto; padding: .5rem 0 0; border-top: 1px solid #eef1f2; }
 .line-chart { display: block; height: 260px; overflow: visible; }
 .chart-grid { stroke: #e7edef; stroke-width: 1; stroke-dasharray: 4 5; }
-.chart-line { fill: none; stroke: #087c75; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.chart-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.chart-line.payable { stroke: #2a78d6; }
 .chart-line.paid { stroke: #287d4d; }
-.chart-point circle { fill: #fff; stroke: #087c75; stroke-width: 3; cursor: pointer; }
+.chart-point circle { fill: #fff; stroke-width: 3; cursor: pointer; }
+.chart-point circle.payable { stroke: #2a78d6; }
 .chart-point circle.paid { stroke: #287d4d; }
 .chart-point:hover circle { fill: #dff4ef; r: 7px; }
 .chart-value,.chart-month,.chart-count { text-anchor: middle; font-family: "Open Sans",sans-serif; }
 .chart-value { fill: #52636d; font-size: 10px; font-weight: 700; }
+.chart-value.payable { fill: #215fa9; }
+.chart-value.paid { fill: #287d4d; }
 .chart-month { fill: #263943; font-size: 10px; font-weight: 700; text-transform: capitalize; }
 .chart-count { fill: #71808a; font-size: 8px; }
+.chart-legend { display: flex; gap: 1rem; margin-top: .75rem; color: #52636d; font-size: .75rem; font-weight: 700; }
+.chart-legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.chart-legend i { display: inline-block; width: 18px; height: 3px; border-radius: 999px; }
+.chart-legend i.payable { background: #2a78d6; }
+.chart-legend i.paid { background: #287d4d; }
 @media (max-width: 760px) { .chart-heading { flex-direction: column; } .chart-filters { width: 100%; flex-wrap: wrap; } .chart-filters > label,.month-picker { flex: 1 1 140px; } .chart-filters select { width: 100%; } }
