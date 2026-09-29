@@ -11,6 +11,15 @@ public sealed record VencimentoProximo(
 /// <summary>Soma de ValorFinal das contas a pagar de um centro de custo, para o gráfico de pizza do painel.</summary>
 public sealed record GastoPorCentroCusto(string CentroCusto, decimal Total, string? Cor);
 
+public enum TipoGraficoContas
+{
+    APagar,
+    Pagas,
+}
+
+/// <summary>Total financeiro agrupado pelo primeiro dia de cada mês.</summary>
+public sealed record TotalContasMes(DateOnly Mes, decimal Total, int Quantidade);
+
 /// <summary>
 /// Indicadores do dashboard financeiro (seção 9 do escopo). "Vencida"/"a
 /// vencer"/"hoje"/"próximos 7 dias" são calculados a partir de
@@ -37,4 +46,9 @@ public sealed record IndicadoresPainel(
 public interface IPainelFinanceiro
 {
     Task<IndicadoresPainel> ObterAsync();
+
+    Task<IReadOnlyList<TotalContasMes>> ObterContasPorMesAsync(
+        TipoGraficoContas tipo,
+        DateOnly dataInicial,
+        DateOnly dataFinal);
 }

@@ -8,6 +8,54 @@ namespace ErpFinanceiro.Infrastructure.Dashboard;
 
 public sealed class PainelFinanceiro(AppDbContext db, IRelogio relogio) : IPainelFinanceiro
 {
+    public async Task<IReadOnlyList<TotalContasMes>> ObterContasPorMesAsync(
+        TipoGraficoContas tipo,
+        DateOnly dataInicial,
+        DateOnly dataFinal)
+    {
+        var inicio = new DateOnly(dataInicial.Year, dataInicial.Month, 1);
+        var fim = new DateOnly(dataFinal.Year, dataFinal.Month, 1).AddMonths(1).AddDays(-1);
+        if (inicio > fim)
+            return [];
+
+        List<(DateOnly Data, decimal Valor)> lancamentos;
+        if (tipo == TipoGraficoContas.Pagas)
+        {
+            lancamentos = (await db.Pagamentos.AsNoTracking()
+                    .Where(p => p.Status == StatusPagamento.Confirmado && p.Data >= inicio && p.Data <= fim)
+                    .Select(p => new { p.Data, Valor = p.ValorPago })
+                    .ToListAsync())
+                .Select(x => (x.Data, x.Valor))
+                .ToList();
+        }
+        else
+        {
+            lancamentos = (await db.ContasPagar.AsNoTracking()
+                    .Where(c => c.ExcluidoEm == null
+                        && c.StatusFinanceiro != StatusFinanceiro.Paga
+                        && c.StatusFinanceiro != StatusFinanceiro.Cancelada
+                        && c.Vencimento >= inicio
+                        && c.Vencimento <= fim)
+                    .Select(c => new { Data = c.Vencimento, Valor = c.ValorFinal })
+                    .ToListAsync())
+                .Select(x => (x.Data, x.Valor))
+                .ToList();
+        }
+
+        var agrupado = lancamentos
+            .GroupBy(x => new { x.Data.Year, x.Data.Month })
+            .ToDictionary(g => (g.Key.Year, g.Key.Month), g => new { Total = g.Sum(x => x.Valor), Quantidade = g.Count() });
+
+        var resultado = new List<TotalContasMes>();
+        for (var mes = inicio; mes <= fim; mes = mes.AddMonths(1))
+        {
+            agrupado.TryGetValue((mes.Year, mes.Month), out var total);
+            resultado.Add(new TotalContasMes(mes, total?.Total ?? 0m, total?.Quantidade ?? 0));
+        }
+
+        return resultado;
+    }
+
     public async Task<IndicadoresPainel> ObterAsync()
     {
         var hoje = relogio.Hoje();

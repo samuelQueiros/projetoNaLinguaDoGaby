@@ -36,6 +36,7 @@ public static class ReactApiEndpoints
 
         var api = app.MapGroup("/api").RequireAuthorization();
         api.MapGet("/dashboard", (IPainelFinanceiro g) => g.ObterAsync());
+        api.MapGet("/dashboard/contas-mensais", (TipoGraficoContas tipo, DateOnly dataInicial, DateOnly dataFinal, IPainelFinanceiro g) => g.ObterContasPorMesAsync(tipo, dataInicial, dataFinal));
         api.MapGet("/notificacoes", async (ClaimsPrincipal p, UserManager<Usuario> um, IConsultaNotificacoes g) => await g.ListarAsync(await Uid(p, um)));
         api.MapPost("/notificacoes/{tipo}/{id:guid}/marcar-como-lida", async (TipoNotificacao tipo, Guid id, ClaimsPrincipal p, UserManager<Usuario> um, IConsultaNotificacoes g) => await g.MarcarComoLidaAsync(await Uid(p, um), tipo, id));
         Cadastros(api); Fornecedores(api); Contas(api); BancosCartoes(api);

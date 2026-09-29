@@ -1,4 +1,5 @@
 using ErpFinanceiro.Application;
+using ErpFinanceiro.Application.Dashboard;
 using ErpFinanceiro.Domain;
 using ErpFinanceiro.Infrastructure.Dashboard;
 using ErpFinanceiro.Infrastructure.Data;
@@ -134,5 +135,34 @@ public class PainelFinanceiroTests
 
         Assert.Equal(2, indicadores.ProximosVencimentos.Count);
         Assert.Equal(200m, indicadores.ProximosVencimentos[0].ValorFinal);
+    }
+
+    [Fact]
+    public async Task ObterContasPorMesAsync_separa_contas_a_pagar_e_pagamentos_confirmados()
+    {
+        var (db, fornecedorId, usuarioId) = await CriarBaseAsync();
+        var janeiro = new DateOnly(2026, 1, 10);
+        var fevereiro = new DateOnly(2026, 2, 10);
+        var abertaJaneiro = NovaConta(fornecedorId, usuarioId, janeiro, 100m);
+        var abertaFevereiro = NovaConta(fornecedorId, usuarioId, fevereiro, 200m);
+        var paga = NovaConta(fornecedorId, usuarioId, janeiro, 300m, StatusFinanceiro.Paga);
+        var cancelada = NovaConta(fornecedorId, usuarioId, fevereiro, 900m, StatusFinanceiro.Cancelada);
+        db.ContasPagar.AddRange(abertaJaneiro, abertaFevereiro, paga, cancelada);
+        db.Pagamentos.AddRange(
+            new Pagamento { Id = Guid.NewGuid(), ContaPagarId = paga.Id, Data = janeiro, ValorPago = 300m, Status = StatusPagamento.Confirmado, RegistradoPorId = usuarioId },
+            new Pagamento { Id = Guid.NewGuid(), ContaPagarId = paga.Id, Data = fevereiro, ValorPago = 999m, Status = StatusPagamento.Estornado, RegistradoPorId = usuarioId });
+        await db.SaveChangesAsync();
+
+        var painel = new PainelFinanceiro(db, new RelogioFixo(janeiro));
+        var aPagar = await painel.ObterContasPorMesAsync(TipoGraficoContas.APagar, new DateOnly(2026, 1, 1), new DateOnly(2026, 3, 31));
+        var pagas = await painel.ObterContasPorMesAsync(TipoGraficoContas.Pagas, new DateOnly(2026, 1, 1), new DateOnly(2026, 3, 31));
+
+        Assert.Equal(3, aPagar.Count);
+        Assert.Equal(100m, aPagar[0].Total);
+        Assert.Equal(200m, aPagar[1].Total);
+        Assert.Equal(0m, aPagar[2].Total);
+        Assert.Equal(300m, pagas[0].Total);
+        Assert.Equal(0m, pagas[1].Total);
+        Assert.Equal(1, pagas[0].Quantidade);
     }
 }

@@ -28,6 +28,10 @@ public class ExecutorFerramentasChatIaTests
             new List<GastoPorCentroCusto> { new("Administrativo", 1000m, "#2a78d6") });
 
         public Task<IndicadoresPainel> ObterAsync() => Task.FromResult(Retorno);
+
+        public Task<IReadOnlyList<TotalContasMes>> ObterContasPorMesAsync(
+            TipoGraficoContas tipo, DateOnly dataInicial, DateOnly dataFinal) =>
+            Task.FromResult<IReadOnlyList<TotalContasMes>>([]);
     }
 
     private sealed class ContasPagarFalso : IGerenciadorContasPagar
