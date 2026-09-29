@@ -198,3 +198,7 @@
 .notification-error { margin: 0; padding: .65rem 1rem; background: #fff0f1; color: #8e2630 !important; }
 .notification-empty { margin: 0; padding: 1.25rem; color: #71808a; text-align: center; }
 .row-highlight td { background: #eaf8f4; }
+.development-card { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #657680; }
+.development-card > i { font-size: 2.5rem; color: #d28a12; margin-bottom: .8rem; }
+.development-card h2 { margin-bottom: .35rem; color: #163545; }
+.development-card p { margin: 0; }
