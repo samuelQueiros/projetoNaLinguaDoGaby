@@ -174,3 +174,27 @@
     flex-wrap: wrap;
   }
 }
+
+.notifications { margin-left: auto; position: relative; }
+.notification-bell { position: relative; min-width: 38px; min-height: 38px; padding: 0; border-radius: 50%; background: #f1f6f6; color: #163545; font-size: 0; }
+.notification-bell:hover { background: #e1efec; filter: none; }
+.bell-icon { font-size: 1.25rem; line-height: 1; }
+.notification-bell b { position: absolute; top: -5px; right: -7px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: #b83b47; color: #fff; font: 700 .62rem/18px "Open Sans", sans-serif; }
+.notification-popover { position: absolute; z-index: 25; top: calc(100% + .55rem); right: 0; width: min(390px, calc(100vw - 2rem)); background: #fff; border: 1px solid #dce3e7; border-radius: 10px; box-shadow: 0 12px 28px #102d3b25; color: #263943; text-transform: none; letter-spacing: normal; font-size: .84rem; overflow: hidden; }
+.notification-popover header { padding: .85rem 1rem; border-bottom: 1px solid #e8edef; display: flex; align-items: center; justify-content: space-between; }
+.notification-popover header small { color: #657680; }
+.notification-popover ul { list-style: none; padding: 0; margin: 0; max-height: 330px; overflow: auto; }
+.notification-popover li { display: flex; gap: .7rem; padding: .9rem 1rem; border-bottom: 1px solid #eef1f2; }
+.notification-popover li:last-child { border-bottom: 0; }
+.notification-popover p { margin: .2rem 0; color: #52636d; }
+.notification-popover small { color: #71808a; }
+.notification-content { flex: 1; min-width: 0; }
+.notification-target { display: flex; flex-direction: column; align-items: flex-start; width: 100%; padding: 0; background: none; color: inherit; text-align: left; }
+.notification-target:hover { filter: none; color: #087c75; }
+.notification-target span { margin: .2rem 0; color: #52636d; }
+.notification-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #fff2dc; color: #a26700; font-weight: 700; }
+.notification-read { display: inline-flex; gap: .25rem; margin-top: .45rem; padding: 0; background: none; color: #087c75; font-size: .75rem; }
+.notification-read:hover { filter: none; text-decoration: underline; }
+.notification-error { margin: 0; padding: .65rem 1rem; background: #fff0f1; color: #8e2630 !important; }
+.notification-empty { margin: 0; padding: 1.25rem; color: #71808a; text-align: center; }
+.row-highlight td { background: #eaf8f4; }

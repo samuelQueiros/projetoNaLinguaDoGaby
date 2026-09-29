@@ -11,6 +11,7 @@ using ErpFinanceiro.Application.Dashboard;
 using ErpFinanceiro.Application.DocumentosIa;
 using ErpFinanceiro.Application.Fornecedores;
 using ErpFinanceiro.Application.NotasFiscais;
+using ErpFinanceiro.Application.Notificacoes;
 using ErpFinanceiro.Application.Usuarios;
 using ErpFinanceiro.Domain;
 using Microsoft.AspNetCore.Identity;
@@ -35,6 +36,8 @@ public static class ReactApiEndpoints
 
         var api = app.MapGroup("/api").RequireAuthorization();
         api.MapGet("/dashboard", (IPainelFinanceiro g) => g.ObterAsync());
+        api.MapGet("/notificacoes", async (ClaimsPrincipal p, UserManager<Usuario> um, IConsultaNotificacoes g) => await g.ListarAsync(await Uid(p, um)));
+        api.MapPost("/notificacoes/{tipo}/{id:guid}/marcar-como-lida", async (TipoNotificacao tipo, Guid id, ClaimsPrincipal p, UserManager<Usuario> um, IConsultaNotificacoes g) => await g.MarcarComoLidaAsync(await Uid(p, um), tipo, id));
         Cadastros(api); Fornecedores(api); Contas(api); BancosCartoes(api);
         NotasBoletos(api); Documentos(api); Anexos(api); Administracao(api);
     }

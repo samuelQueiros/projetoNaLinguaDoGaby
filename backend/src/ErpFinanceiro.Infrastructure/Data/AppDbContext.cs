@@ -58,6 +58,8 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
     public DbSet<ConfiguracaoIaSalva> ConfiguracoesIa => Set<ConfiguracaoIaSalva>();
 
+    public DbSet<NotificacaoLida> NotificacoesLidas => Set<NotificacaoLida>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -617,6 +619,19 @@ public class AppDbContext : IdentityDbContext<Usuario, IdentityRole<Guid>, Guid>
 
             // Uma linha por finalidade — upsert em GerenciadorConfiguracaoIa.
             b.HasIndex(c => c.Finalidade).IsUnique();
+        });
+
+        builder.Entity<NotificacaoLida>(b =>
+        {
+            b.ToTable("NotificacoesLidas");
+            b.HasKey(n => new { n.UsuarioId, n.Tipo, n.ReferenciaId, n.Vencimento });
+            b.Property(n => n.Tipo).HasConversion<string>().HasMaxLength(20);
+            b.Property(n => n.LidaEm).HasDefaultValueSql("now()");
+            b.HasOne(n => n.Usuario)
+                .WithMany()
+                .HasForeignKey(n => n.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(n => n.LidaEm);
         });
     }
 

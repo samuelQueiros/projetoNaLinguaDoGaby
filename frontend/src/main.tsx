@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, date, hoje, mascararCpfCnpj, money, nested, Operation, semLetras, User } from './api';
+import 'bootstrap-icons/font/bootstrap-icons.css';
 import './styles.css';
 import './documents.css';
 
@@ -44,7 +45,17 @@ function Layout(){
  return <Guard><div className="shell"><aside className={open?'open':''}><div className="brand"><img src="/img/onrtdpj-icone.png"/><b>Financeiro <strong>ONRTDPJ</strong></b></div><nav>{groups.map(([g,items])=>g==='Cadastros'?
    <section key={g}><button type="button" className="nav-toggle" onClick={()=>setCadastrosAberto(v=>!v)}><small>{g}</small><span className={'chev'+(cadastrosAberto?' open':'')}>▾</span></button>{cadastrosAberto&&items.map(([l,h])=><NavLink key={h} to={h} end={(h as string)==='/'} onClick={()=>setOpen(false)}>{l}</NavLink>)}</section>
    :<section key={g}><small>{g}</small>{items.map(([l,h])=><NavLink key={h} to={h} end={(h as string)==='/'} onClick={()=>setOpen(false)}>{l}</NavLink>)}</section>
- )}{user?.ehAdministrador&&<section><small>Administração</small><NavLink to="/auditoria">Auditoria</NavLink><NavLink to="/usuarios">Usuários</NavLink><NavLink to="/configuracoes-ia">Configurações de IA</NavLink></section>}</nav><div className="profile"><span>{user?.nome}<small>{user?.papeis.join(' · ')}</small></span><button className="link" onClick={async()=>{await api('/api/auth/logout',{method:'POST'});location.assign('/login')}}>Sair</button></div></aside><main className="main"><header><button className="menu" onClick={()=>setOpen(!open)}>☰</button><span>Ambiente financeiro</span></header><div className="content"><OutletRoutes/></div></main><Chat/></div></Guard>;
+ )}{user?.ehAdministrador&&<section><small>Administração</small><NavLink to="/auditoria">Auditoria</NavLink><NavLink to="/usuarios">Usuários</NavLink><NavLink to="/configuracoes-ia">Configurações de IA</NavLink></section>}</nav><div className="profile"><span>{user?.nome}<small>{user?.papeis.join(' · ')}</small></span><button className="link" onClick={async()=>{await api('/api/auth/logout',{method:'POST'});location.assign('/login')}}>Sair</button></div></aside><main className="main"><header><button className="menu" onClick={()=>setOpen(!open)}>☰</button><span>Ambiente financeiro</span><Notificacoes/></header><div className="content"><OutletRoutes/></div></main><Chat/></div></Guard>;
+}
+type NotificacaoVencimento={id:string;fornecedorId:string;tipo:'Contrato'|'ContaPagar';titulo:string;fornecedor:string;vencimento:string};
+function Notificacoes(){
+ const [itens,setItens]=useState<NotificacaoVencimento[]>([]),[aberto,setAberto]=useState(false),[marcando,setMarcando]=useState(''),[erro,setErro]=useState('');
+ const navegar=useNavigate();
+ const carregar=()=>api<NotificacaoVencimento[]>('/api/notificacoes').then(setItens).catch(()=>setItens([]));
+ async function marcarComoLida(n:NotificacaoVencimento){const chave=n.tipo+'-'+n.id;setMarcando(chave);setErro('');try{const r:any=await api('/api/notificacoes/'+n.tipo+'/'+n.id+'/marcar-como-lida',{method:'POST'});if(r.sucesso===false)throw new Error(r.erros.join(' '));setItens(xs=>xs.filter(x=>x.tipo+'-'+x.id!==chave))}catch(x){setErro((x as Error).message)}finally{setMarcando('')}}
+ function abrirNotificacao(n:NotificacaoVencimento){setAberto(false);navegar(n.tipo==='Contrato'?'/fornecedores?fornecedorId='+n.fornecedorId+'&contratoId='+n.id:'/contas-a-pagar?contaId='+n.id)}
+ useEffect(()=>{carregar();const intervalo=window.setInterval(carregar,300000);return()=>window.clearInterval(intervalo)},[]);
+ return <div className="notifications"><button type="button" className="notification-bell" aria-label={itens.length?`${itens.length} notificações de vencimento`:'Nenhuma notificação'} aria-expanded={aberto} onClick={()=>setAberto(v=>!v)}><i className="bi bi-bell-fill bell-icon" aria-hidden="true"/>{itens.length>0&&<b>{itens.length>99?'99+':itens.length}</b>}</button>{aberto&&<section className="notification-popover" aria-label="Notificações"><header><strong>Notificações</strong><small>{itens.length?`${itens.length} vencimento(s) amanhã`:'Tudo em dia'}</small></header>{erro&&<p className="notification-error">{erro}</p>}{itens.length?<ul>{itens.map(n=>{const chave=n.tipo+'-'+n.id;return <li key={chave}><span className="notification-mark" aria-hidden="true"><i className={'bi '+(n.tipo==='Contrato'?'bi-file-earmark-text':'bi-receipt')}/></span><div className="notification-content"><button type="button" className="notification-target" onClick={()=>abrirNotificacao(n)}><strong>{n.tipo==='Contrato'?'Contrato vence amanhã':'Conta a pagar vence amanhã'}</strong><span><b>{n.titulo}</b> · {n.fornecedor}</span><small>Vencimento: {date(n.vencimento)}</small></button><button type="button" className="notification-read" disabled={marcando===chave} onClick={()=>marcarComoLida(n)}><i className="bi bi-check2" aria-hidden="true"/> {marcando===chave?'Marcando…':'Marcar como lida'}</button></div></li>})}</ul>:<p className="notification-empty">Não há contratos ou contas a pagar vencendo amanhã.</p>}</section>}</div>;
 }
 function OutletRoutes(){return <Routes><Route index element={<Dashboard/>}/><Route path="contas-a-pagar" element={<Contas/>}/><Route path="contas-a-pagar/novo" element={<Navigate to="/contas-a-pagar"/>}/><Route path="contas-a-pagar/:id" element={<Navigate to="/contas-a-pagar"/>}/><Route path="fornecedores" element={<Fornecedores/>}/><Route path="fornecedores/novo" element={<Navigate to="/fornecedores"/>}/><Route path="categorias" element={<Crud config={configs.categorias}/>}/><Route path="centros-de-custo" element={<Crud config={configs.centros}/>}/><Route path="contas-bancarias" element={<Crud config={configs.bancos}/>}/><Route path="cartoes" element={<Crud config={configs.cartoes}/>}/><Route path="notas-fiscais" element={<DocumentosPorTipo tipo="NotaFiscal" titulo="Notas fiscais"/>}/><Route path="boletos" element={<DocumentosPorTipo tipo="Boleto" titulo="Boletos"/>}/><Route path="contratos" element={<DocumentosPorTipo tipo="Contrato" titulo="Contratos"/>}/><Route path="comprovantes" element={<DocumentosPorTipo tipo="Comprovante" titulo="Comprovantes"/>}/><Route path="central-de-documentos" element={<Documentos/>}/><Route path="relatorios" element={<Relatorios/>}/><Route path="auditoria" element={<Admin><Auditoria/></Admin>}/><Route path="usuarios" element={<Admin><Usuarios/></Admin>}/><Route path="configuracoes-ia" element={<Admin><Configuracoes/></Admin>}/><Route path="*" element={<NotFound/>}/></Routes>}
 function Admin({children}:{children:React.ReactNode}){return <Guard admin>{children}</Guard>}
@@ -121,7 +132,7 @@ function DadosBancarios({fornecedorId}:{fornecedorId:string}){
    <div className="actions full"><button>Adicionar dados bancários</button></div>
   </form>
  </section>}
-function Contratos({fornecedorId}:{fornecedorId:string}){
+function Contratos({fornecedorId,contratoId}:{fornecedorId:string;contratoId?:string|null}){
  const {data,load}=useLoad<any[]>('/api/fornecedores/'+fornecedorId+'/contratos');
  const [novo,setNovo]=useState<any>({nome:'',vigenciaInicio:'',vigenciaFim:''});
  const [arquivo,setArquivo]=useState<File|null>(null);
@@ -133,9 +144,10 @@ function Contratos({fornecedorId}:{fornecedorId:string}){
    setNovo({nome:'',vigenciaInicio:'',vigenciaFim:''});setArquivo(null);if(arquivoRef.current)arquivoRef.current.value='';setMsg('Contrato adicionado com sucesso.');load()}
   catch(x){setMsg((x as Error).message)}}
  async function remover(id:string){if(!confirm('Remover este contrato?'))return;const r:any=await api('/api/fornecedores/contratos/'+id,{method:'DELETE'});if(r.sucesso===false){setMsg(r.erros.join(' '));return}setMsg('Contrato removido.');load()}
- return <section className="contratos"><h3>Contratos</h3>{msg&&<p className="alert">{msg}</p>}
+ useEffect(()=>{if(contratoId&&data?.some(c=>c.id===contratoId))document.getElementById('contratos-fornecedor')?.scrollIntoView({behavior:'smooth',block:'start'})},[contratoId,data]);
+ return <section className="contratos" id="contratos-fornecedor"><h3>Contratos</h3>{msg&&<p className="alert">{msg}</p>}
   <div className="table-wrap"><table><thead><tr><th>Nome</th><th>Vigência</th><th>Arquivo</th><th></th></tr></thead><tbody>
-   {(data&&data.length)?data.map(c=><tr key={c.id}><td>{c.nome}</td><td>{date(c.vigenciaInicio)} – {date(c.vigenciaFim)}</td><td><a href={'/contratos-fornecedor/'+c.id+'/arquivo'} target="_blank" rel="noreferrer">{c.nomeArquivo}</a></td><td><button type="button" className="link danger" onClick={()=>remover(c.id)}>Excluir</button></td></tr>):<tr><td colSpan={4} className="empty">Nenhum contrato anexado.</td></tr>}
+   {(data&&data.length)?data.map(c=><tr key={c.id} className={c.id===contratoId?'row-highlight':''}><td>{c.nome}</td><td>{date(c.vigenciaInicio)} – {date(c.vigenciaFim)}</td><td><a href={'/contratos-fornecedor/'+c.id+'/arquivo'} target="_blank" rel="noreferrer">{c.nomeArquivo}</a></td><td><button type="button" className="link danger" onClick={()=>remover(c.id)}>Excluir</button></td></tr>):<tr><td colSpan={4} className="empty">Nenhum contrato anexado.</td></tr>}
   </tbody></table></div>
   <form className="form-grid" onSubmit={adicionar}>
    <label>Nome do contrato<input required value={novo.nome} onChange={e=>setNovo({...novo,nome:e.target.value})}/></label>
@@ -148,11 +160,14 @@ function Contratos({fornecedorId}:{fornecedorId:string}){
 const contratoNovoVazio={nome:'',vigenciaInicio:'',vigenciaFim:''};
 function Fornecedores(){
  const config=configs.fornecedores;
+ const rota=useLocation();
  const {data,load}=useLoad<any[]>(config.endpoint);
  const [editing,setEditing]=useState<any|null>(null),[msg,setMsg]=useState('');
  const [contratoNovo,setContratoNovo]=useState<any>(contratoNovoVazio);
  const [arquivoNovo,setArquivoNovo]=useState<File|null>(null);
  const [dadosBancariosNovo,setDadosBancariosNovo]=useState<any>(dadosBancariosVazio);
+ const parametros=new URLSearchParams(rota.search),fornecedorSelecionadoId=parametros.get('fornecedorId'),contratoSelecionadoId=parametros.get('contratoId');
+ useEffect(()=>{if(fornecedorSelecionadoId)api<any>('/api/fornecedores/'+fornecedorSelecionadoId).then(f=>setEditing({...f})).catch(x=>setMsg((x as Error).message))},[fornecedorSelecionadoId]);
  function limparNovo(){setContratoNovo(contratoNovoVazio);setArquivoNovo(null);setDadosBancariosNovo(dadosBancariosVazio)}
  async function save(e:React.FormEvent){e.preventDefault();
   if(!editing.id&&arquivoNovo&&(!contratoNovo.nome||!contratoNovo.vigenciaInicio||!contratoNovo.vigenciaFim)){setMsg('Preencha nome e vigência do contrato, ou remova o arquivo selecionado.');return}
@@ -196,7 +211,7 @@ function Fornecedores(){
    </div></section>}
    </form>
    {editing.id&&<DadosBancarios fornecedorId={editing.id}/>}
-   {editing.id&&<Contratos fornecedorId={editing.id}/>}
+   {editing.id&&<Contratos fornecedorId={editing.id} contratoId={contratoSelecionadoId}/>}
    <div className="actions"><button type="button" className="secondary" onClick={()=>setEditing(null)}>Cancelar</button><button type="submit" form="form-fornecedor">Salvar</button></div>
   </div></div>}
  </>}
