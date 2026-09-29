@@ -171,6 +171,24 @@ public class FluxoAprovacaoTests
     }
 
     [Fact]
+    public async Task RetornarParaCadastradaAsync_conta_rejeitada_restaura_status_limpa_motivo_e_audita()
+    {
+        var (db, fluxo, auditoria, userManager, conta) = await PrepararAsync();
+        var gestor = await CriarUsuarioComPapelAsync(db, userManager, "Gestor");
+        await fluxo.RejeitarAsync(conta.Id, gestor.Id, "Documentação incompleta");
+        auditoria.Chamadas.Clear();
+
+        var resultado = await fluxo.RetornarParaCadastradaAsync(conta.Id, gestor.Id);
+
+        Assert.True(resultado.Sucesso);
+        var doBanco = await db.ContasPagar.FindAsync(conta.Id);
+        Assert.Equal(StatusAprovacao.Cadastrada, doBanco!.StatusAprovacao);
+        Assert.Null(doBanco.MotivoCancelamentoRejeicao);
+        Assert.Equal(AcaoAprovacao.RetornadaCadastro, (await db.AprovacoesConta.OrderBy(a => a.Data).LastAsync()).Acao);
+        Assert.Equal("RetornadaCadastro", Assert.Single(auditoria.Chamadas).Acao);
+    }
+
+    [Fact]
     public async Task RetornarParaCadastradaAsync_conta_nao_aprovada_retorna_falha()
     {
         var (db, fluxo, _, userManager, conta) = await PrepararAsync();

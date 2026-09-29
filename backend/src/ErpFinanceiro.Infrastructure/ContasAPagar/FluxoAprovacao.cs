@@ -49,13 +49,13 @@ public sealed class FluxoAprovacao(AppDbContext db, UserManager<Usuario> userMan
         }
 
         var transicaoPermitida = statusDestino == StatusAprovacao.Cadastrada
-            ? conta.StatusAprovacao == StatusAprovacao.Aprovada
+            ? conta.StatusAprovacao is StatusAprovacao.Aprovada or StatusAprovacao.Rejeitada
             : conta.StatusAprovacao is StatusAprovacao.Cadastrada or StatusAprovacao.AguardandoAprovacao;
 
         if (!transicaoPermitida)
         {
             return ResultadoOperacao.Falha(statusDestino == StatusAprovacao.Cadastrada
-                ? "Só contas aprovadas podem retornar para cadastrada."
+                ? "Só contas aprovadas ou rejeitadas podem retornar para cadastrada."
                 : $"Conta já está no status de aprovação '{conta.StatusAprovacao}' — não pode ser aprovada/rejeitada novamente.");
         }
 
